@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.2
+# Ivory Digital Wedding Planner — v1.0.3
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -37,6 +37,7 @@ The database is SQLite on your local ZFS dataset, with WAL and transaction check
 - Superadmin: access extensions/free access/suspension, pricing and launch switches, email settings and delivery history, storage/backup results, support permission and audit log.
 - Admin authenticator enrolment, replay-resistant TOTP and single-use recovery codes.
 - SMTP email queue with retries, deduplicated payment reminders and weekly round-ups. Finished weddings stop planning reminders.
+- PayPal.Me payment instructions with a GBP amount and reference, couple payment reports, admin verification before access, unique transaction records and manual refund recording. Stripe remains available as an alternative.
 - Optional Stripe one-time Checkout and signed, amount-checked, idempotent webhooks. The app does not pay wedding suppliers or store card details.
 - Daily consistent backups of the database, files and encryption key; archive verification before retention.
 - Responsive layouts, explicit heading contrast, and system/manual light/dark mode.
@@ -101,7 +102,8 @@ Or use these commands in the repository folder:
 ```bash
 cd /mnt/apps/weddingplannercouples
 docker compose config --quiet
-docker compose up -d --build
+docker compose build web
+docker compose up -d --force-recreate
 docker compose ps
 curl --fail http://127.0.0.1:30063/healthz
 ```
@@ -198,7 +200,8 @@ It makes a backup, refuses to overwrite local Git edits, pulls with `--ff-only`,
 ```bash
 cd /mnt/apps/weddingplannercouples
 git checkout THE_PREVIOUS_COMMIT_PRINTED_BY_THE_SCRIPT
-docker compose up -d --build
+docker compose build web
+docker compose up -d --force-recreate
 curl --fail http://127.0.0.1:30063/healthz
 ```
 
@@ -225,9 +228,38 @@ The update adds encrypted admin SMTP settings without replacing accounts, the da
 cd /mnt/apps/weddingplannercouples
 docker compose exec -T worker python manage.py backup
 git pull --ff-only
-docker compose up -d --build
+docker compose build web
+docker compose up -d --force-recreate
 docker compose ps
 curl --fail http://127.0.0.1:30063/healthz
 ```
 
 The health response should show v1.0.2. Refresh the admin page to load the new email controls. This planner uses port **30063**; port 30061 belongs to the separate tenant booking system.
+
+## PayPal.Me setup — v1.0.3
+
+In **Admin → Pricing & trials**, choose **PayPal.Me — I verify payments manually**. The confirmed profile is prefilled as `https://paypal.me/weddingsbymark`; you can edit it. Your existing price, notices and open/closed settings are retained. Set/check the one-time price and refund terms, then enable **Open payments** when ready. Stripe credentials are not required for PayPal.Me. Existing active Stripe installations retain Stripe during migration.
+
+The couple selects Upgrade access, reads the price/access/refund terms, accepts the terms, then receives payment instructions with a GBP link and a unique reference. Ask them to include that reference and planner email in the PayPal note. They should pay for goods or services and confirm the recipient and GBP amount in PayPal. They can then report their transaction ID. A report never activates access.
+
+Payment requests appear under **Pricing & trials → PayPal payments & access**. Check the payment inside your own PayPal account. Select **Verify payment & activate access**, enter the actual transaction ID and gross amount before PayPal fees, and confirm that you checked the completed payment, recipient and currency. The planner records a verified sale and grants access to both partners. A transaction ID cannot be used for two weddings; repeated confirmation does not add another sale. Existing longer access is retained. Complimentary weddings are not asked to pay.
+
+Prepared requests keep their original amount, access date, terms and recipient. Changing payment provider does not verify an earlier payment; unresolved PayPal requests block starting a second Stripe checkout. A customer must not send payment again while awaiting confirmation. If they abandon a request, **Close unpaid request** is available after you check that no completed or pending payment exists in PayPal. This retains the history and lets them request new instructions. Never close a received payment as unpaid.
+
+Refunds must be completed manually in PayPal. **Record completed PayPal refund** only records a full refund already made; it does not transfer money. Review the couple's access separately afterwards. Receipt history is retained and the refunded payment is removed from the confirmed-payment total.
+
+Update your privacy notice to identify PayPal as the processor of payment details. The planner stores payment references/status, the reported transaction ID and the transaction ID you verify; PayPal handles the actual payment details. No PayPal password or API credential is needed for this manual-link flow. Live PayPal payment and recipient/currency behaviour still need a merchant check on the deployed app before opening paid access widely.
+
+Update from your current installation:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+docker compose exec -T worker python manage.py backup
+git pull --ff-only
+docker compose build web
+docker compose up -d --force-recreate
+docker compose ps
+curl --fail http://127.0.0.1:30063/healthz
+```
+
+The health response should show **1.0.3**. Refresh the admin page after deployment.

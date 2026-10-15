@@ -1,3 +1,9 @@
+# v1.0.3 — PayPal.Me with manual verification
+
+Add the confirmed weddingsbymark PayPal.Me profile as an editable admin setting. Couples accept payment terms, get a GBP payment link and unique reference, then may report their transaction ID. Reports do not grant access. Admin verifies the actual transaction and gross GBP amount before activating both partners’ access. Receipt uniqueness and idempotent confirmation prevent duplicate sales. Existing requests preserve original commercial terms. Refund recording requires a refund already completed in PayPal and leaves access changes to a separate review.
+
+Stripe remains available, with unresolved PayPal requests preventing a second checkout through another provider. Existing Stripe installations retain their payment method. Existing pricing, sign-up switches and accounts are retained. Update scripts build the shared image once and recreate both services, avoiding stale containers on update. Port remains 30063.
+
 # v1.0.2 — email setup in superadmin
 
 Configure SMTP hostname, port, SSL/TLS or STARTTLS, username, encrypted password, sender and reply-to from Email & reminders. Blank password preserves the saved value; explicit removal and replacement are supported. Legacy server environment settings remain available. Test sends save the form first and report actual server acceptance or a fixed, safe failure hint. Tests are recorded separately from queued mail and are not retried automatically. Refresh delivery status preserves unsaved form edits. The worker uses saved settings without a restart; signup readiness uses the selected email configuration. No SMTP password or encrypted credential is returned in the admin API or audit log.

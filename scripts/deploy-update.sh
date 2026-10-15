@@ -9,7 +9,8 @@ old_commit=$(git rev-parse HEAD)
 docker compose exec -T worker python manage.py backup
 git pull --ff-only
 docker compose config --quiet
-docker compose up -d --build
+docker compose build web
+docker compose up -d --force-recreate
 echo "Previous commit for rollback: $old_commit"
 docker compose ps
 for attempt in {1..60}; do

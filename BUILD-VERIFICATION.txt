@@ -1,3 +1,12 @@
+Ivory Wedding Planner v1.0.3 — PayPal.Me update, 15 October 2026
+
+69 backend tests passed, including 21 PayPal cases covering ownership, CSRF, terms acceptance, URL validation, reporting without access, verified amount/currency, transaction reuse, repeated confirmation, frozen request terms, complimentary access, refunds and provider-switch protection.
+5 JavaScript merge regression scenarios remain included.
+Chromium payment flow passed: admin setup, couple terms gate, correct profile/GBP link/reference, reported payment awaiting confirmation, manual admin verification, access refresh and refund recording. Phone/desktop light/dark screens at 320/390/736/1024 had no horizontal overflow or JavaScript errors. Mobile rendering inspected.
+No external PayPal page was visited and no real payment or refund was attempted. Live PayPal recipient/currency behaviour must be checked by the merchant before selling. Docker rebuild and NAS deployment are not performed in this workspace.
+
+Earlier verification (historical):
+
 Ivory Wedding Planner v1.0.2 — SMTP admin follow-up, 15 October 2026
 
 48 backend tests passed (python3 -m pytest -q), including the original workflow regressions and 22 SMTP settings/transport cases.

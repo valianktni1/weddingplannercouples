@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS support(wedding_id TEXT PRIMARY KEY,expires REAL NOT 
 CREATE TABLE IF NOT EXISTS rate_limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,reset REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS purchases(id TEXT PRIMARY KEY,wedding_id TEXT NOT NULL,amount INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'pending',checkout_id TEXT UNIQUE,terms TEXT NOT NULL,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS webhook_events(id TEXT PRIMARY KEY,created REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS paypal_receipts(purchase_id TEXT PRIMARY KEY,transaction_id TEXT UNIQUE NOT NULL,confirmed_by TEXT NOT NULL,confirmed_at REAL NOT NULL,FOREIGN KEY(purchase_id) REFERENCES purchases(id));
 CREATE TABLE IF NOT EXISTS website_slugs(slug TEXT PRIMARY KEY,wedding_id TEXT NOT NULL,FOREIGN KEY(wedding_id) REFERENCES weddings(id) ON DELETE CASCADE);
 '''
 
@@ -39,7 +40,8 @@ DEFAULT_SETTINGS = {'price_pence': None, 'trial_days': 14, 'days_after_wedding':
     'backup_time': '02:00', 'backup_retention_days': 14, 'refund_terms': '',
     'privacy_text': '', 'terms_text': '', 'signups_enabled': False,
     'smtp_source': 'environment', 'smtp_host': '', 'smtp_port': 587,
-    'smtp_security': 'starttls', 'smtp_user': '', 'smtp_password_encrypted': ''}
+    'smtp_security': 'starttls', 'smtp_user': '', 'smtp_password_encrypted': '',
+    'payment_provider': 'paypalme', 'paypal_me_url': 'https://paypal.me/weddingsbymark'}
 
 def connect(path):
     db = sqlite3.connect(path, timeout=20)
@@ -74,6 +76,9 @@ def initialise(data_dir):
             db.execute('ALTER TABLE weddings ADD COLUMN site_revision INTEGER NOT NULL DEFAULT 0')
         db.execute('INSERT OR IGNORE INTO website_slugs SELECT slug,id FROM weddings WHERE slug IS NOT NULL')
         for key, value in DEFAULT_SETTINGS.items():
+            if key=='payment_provider':
+                opened=db.execute('SELECT value FROM settings WHERE key="checkout_enabled"').fetchone()
+                if opened and json.loads(opened['value']) and os.getenv('STRIPE_SECRET_KEY'): value='stripe'
             db.execute('INSERT OR IGNORE INTO settings VALUES (?,?)', (key, json.dumps(value)))
         db.commit();db.close()
         return secret
