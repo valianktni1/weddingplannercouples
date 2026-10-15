@@ -12,7 +12,7 @@ See **AUDIT-REPORT.md** for repaired workflows and verification.
 | Administrator | https://planner.ivorydigital.uk/ivoryadmin |
 | Couple’s planner | https://planner.ivorydigital.uk/app |
 | Wedding website | /weddings/the-couples-chosen-address |
-| Host port | 30061 |
+| Host port | 30063 |
 | Application checkout | /mnt/apps/weddingplannercouples |
 | Couples’ database and files | /mnt/photographers_data/weddingplannercouplesdata |
 | Backup archives | /mnt/apps_snaps_progs/weddingplannercouplesbup |
@@ -103,15 +103,15 @@ cd /mnt/apps/weddingplannercouples
 docker compose config --quiet
 docker compose up -d --build
 docker compose ps
-curl --fail http://127.0.0.1:30061/healthz
+curl --fail http://127.0.0.1:30063/healthz
 ```
 
-Expected health result contains `"status":"ok"`. Only port 30061 is published. SQLite and the worker have no public ports. Keep the Dockge copy of the YAML identical to the repository copy when changing deployment settings; both share the same Compose project name.
+Expected health result contains `"status":"ok"`. Only port 30063 is published. SQLite and the worker have no public ports. Keep the Dockge copy of the YAML identical to the repository copy when changing deployment settings; both share the same Compose project name.
 
 ## 5. Point DNS and Nginx Proxy Manager at the new app
 
 1. Create `planner.ivorydigital.uk` in your DNS, using the same public destination as your other hosted services.
-2. NPM Proxy Host: domain **planner.ivorydigital.uk**, scheme **http**, forwarding IP **192.168.24.10**, port **30061**.
+2. NPM Proxy Host: domain **planner.ivorydigital.uk**, scheme **http**, forwarding IP **192.168.24.10**, port **30063**.
 3. Obtain a Let’s Encrypt certificate, then enable Force SSL. This is an independent proxy host; do not alter the booking/gallery hosts.
 4. Check https://planner.ivorydigital.uk/healthz.
 5. If larger cover/PDF uploads get rejected by NPM, set `client_max_body_size 12m;` for this host only.
@@ -199,7 +199,7 @@ It makes a backup, refuses to overwrite local Git edits, pulls with `--ff-only`,
 cd /mnt/apps/weddingplannercouples
 git checkout THE_PREVIOUS_COMMIT_PRINTED_BY_THE_SCRIPT
 docker compose up -d --build
-curl --fail http://127.0.0.1:30061/healthz
+curl --fail http://127.0.0.1:30063/healthz
 ```
 
 A database rollback requires stopping the app and a deliberate restore; do not assume changing Git restores data. v1 uses a stable schema with `CREATE TABLE IF NOT EXISTS`; future schema migrations must include a rollback plan.

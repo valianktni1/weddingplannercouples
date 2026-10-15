@@ -12,7 +12,7 @@ services:
       BACKUP_DIR: /backups
       APP_URL: https://planner.ivorydigital.uk
     ports:
-      - "30061:8000"
+      - "30063:8000"
     volumes:
       - /mnt/photographers_data/weddingplannercouplesdata:/data
       - /mnt/apps_snaps_progs/weddingplannercouplesbup:/backups:ro

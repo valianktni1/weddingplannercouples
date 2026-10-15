@@ -13,7 +13,7 @@ docker compose up -d --build
 echo "Previous commit for rollback: $old_commit"
 docker compose ps
 for attempt in {1..60}; do
-  if curl --fail --silent http://127.0.0.1:30061/healthz; then exit 0; fi
+  if curl --fail --silent http://127.0.0.1:30063/healthz; then exit 0; fi
   sleep 2
 done
 echo 'The app did not become healthy. Check docker compose logs before continuing.' >&2
