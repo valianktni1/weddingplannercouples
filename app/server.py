@@ -21,7 +21,7 @@ from .core import connect, initialise, config, digest, cipher, valid_totp, empty
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
 
-VERSION='1.0.4'
+VERSION='1.0.5'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -601,7 +601,7 @@ def create_app(test_config=None):
             if key in ['bank_name','bank_account_name','bank_instructions'] and (not isinstance(value,str) or len(value)>(500 if key=='bank_instructions' else 100) or '\r' in value or '\0' in value or key!='bank_instructions' and '\n' in value): raise ValueError('Check the bank account name, bank name and instructions.')
             if key in ['bank_sort_code','bank_account_number']:
                 if not isinstance(value,str): raise ValueError('Bank details must be entered as text so leading zeros are kept.')
-                value=re.sub(r'[ -]','',value.strip())
+                value=re.sub(r'[\s-]','',value.strip())
                 if value and not re.fullmatch(r'\d{'+('6' if key=='bank_sort_code' else '8')+'}',value,flags=re.ASCII): raise ValueError('Use a six-digit sort code and eight-digit UK account number.')
             if key=='paypal_me_url': value=paypal_link(value)
             if key=='smtp_source' and value not in ['panel','environment']: raise ValueError('Choose where SMTP settings are supplied.')

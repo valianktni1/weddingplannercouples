@@ -112,3 +112,17 @@ def test_closed_unpaid_request_can_be_replaced_with_other_method(app):
     admin=setup_bank(app);p=request(admin).json['request']
     assert admin.post('/api/admin/payments/'+p['id']+'/close',json={'verified':True},headers=headers(admin,'/ivoryadmin')).status_code==200
     new=request(admin,provider='paypalme');assert new.status_code==200 and new.json['request']['provider']=='paypalme'
+
+
+@pytest.mark.parametrize('sort,number',[('00 11 22','00 12 34 56'),('00\u00a011\u00a022','00\u202f12\u202f34\u202f56')])
+def test_bank_default_saves_complete_pricing_form_with_formatted_details(app,sort,number):
+    admin=setup_bank(app)
+    settings=admin.get('/api/admin').json['settings']
+    keys=['price_pence','trial_days','days_after_wedding','max_planning_days','access_rule','refund_terms','terms_text','privacy_text','signups_enabled','checkout_enabled','paypal_me_url',*BANK]
+    body={key:settings[key] for key in keys}
+    body.update(payment_provider='bank',bank_sort_code=sort,bank_account_number=number,paypal_me_url='')
+    response=admin.put('/api/admin/settings',json=body,headers=headers(admin,'/ivoryadmin'))
+    assert response.status_code==200,response.json
+    saved=admin.get('/api/admin').json['settings']
+    assert saved['payment_provider']=='bank' and saved['bank_sort_code']=='001122' and saved['bank_account_number']=='00123456'
+    assert start(login(app))['provider']=='bank'

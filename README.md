@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.4
+# Ivory Digital Wedding Planner — v1.0.5
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 

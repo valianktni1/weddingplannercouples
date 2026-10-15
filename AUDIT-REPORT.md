@@ -1,3 +1,7 @@
+## v1.0.5 follow-up — bank default settings
+
+Found that a grouped account number such as `00 12 34 56` exceeded the ten-character input limit and could be truncated to seven digits. Expanded routing input limits; server normalises ordinary and Unicode whitespace before strict digit checks. Save errors previously appeared above the long form and could be missed; feedback now scrolls into view and failed inputs stay intact. Verified choosing bank as default, saving the full form and reloading preserves the selection and leading-zero account number. Live installation errors beyond these reproduced cases still need their specific message.
+
 # Pre-deployment audit — v1.0.1
 
 The full planner, website, RSVP, documents, payments, calendar and superadmin features are retained. This remains a pilot release; production services must be checked on the target NAS.

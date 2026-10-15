@@ -1,3 +1,7 @@
+# v1.0.5 — bank settings save feedback
+
+Prevent formatted account numbers being truncated by the admin input length limit. Accept whitespace-separated UK routing numbers, preserving leading zeros and enforcing six/eight digits after normalisation. Bring settings-save errors and success messages into view on mobile, preserving fields on failure. Version admin scripts to avoid stale cached controls.
+
 # v1.0.4 — bank transfer and per-couple payment requests
 
 Add UK receiving-bank settings with text validation that preserves leading zeros. Admin can choose bank transfer or PayPal.Me separately for each couple before queuing a request email or copying the sign-in link. Requests freeze their method, recipient details, price and terms. Emails omit bank details, reach verified account holders only and are deduplicated. The couple accepts terms before seeing payment instructions and can report a transfer without gaining access. Admin verifies cleared funds before activation. Existing PayPal/Stripe functionality and data are retained. Port remains 30063.
