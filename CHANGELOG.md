@@ -1,3 +1,9 @@
+# v1.0.6 — couple invitations and admin sign-in resumption
+
+Add an admin invitation journey for enquiries and complimentary wedding couples. The couple chooses their own password and accepts recorded policy versions through a single-use seven-day link. Trials start on acceptance. Complimentary access preserves the chosen end date; no purchase is created. Existing accounts are never overwritten. Pending invitations are visible and can be resent, replacing the previous link and cancelling obsolete queued emails.
+
+Resume pending two-step sign-in when reopening the admin or admin login address. Keep the code form available after an incorrect, expired or reused code; redirect authenticated and expired-session visits appropriately. Preserve existing 2FA, rate limits, replay protection and recovery codes.
+
 # v1.0.5 — bank settings save feedback
 
 Prevent formatted account numbers being truncated by the admin input length limit. Accept whitespace-separated UK routing numbers, preserving leading zeros and enforcing six/eight digits after normalisation. Bring settings-save errors and success messages into view on mobile, preserving fields on failure. Version admin scripts to avoid stale cached controls.

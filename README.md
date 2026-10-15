@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.5
+# Ivory Digital Wedding Planner — v1.0.6
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -279,3 +279,14 @@ Existing requests keep the original amount, method, bank details or PayPal profi
 No existing bank details, pricing, policies, accounts or PayPal payments are replaced by this update. Existing requests and endpoints remain compatible. Add the bank payment reporting information (payer name, transfer date and verified references) to your privacy notice as applicable.
 
 Update using the backup/pull/single-image build/recreate commands above. The health endpoint should show **1.0.4**. The planner remains on **30063**. Refresh admin after updating.
+
+
+### Invite a new couple from admin
+
+Open Couples & access → Invite a couple. Enter both names, their main email and optionally the wedding date. Choose a free trial for an enquiry or complimentary access included with a Weddings By Mark booking. Review the complimentary end date before sending. The main account holder receives a seven-day invitation, chooses their own password and accepts the terms. No separate verification email or payment is required. A trial starts on acceptance; complimentary access keeps its chosen end date. The partner can then join through the existing partner invitation feature.
+
+SMTP, a sender, terms and a privacy notice must be configured first. The account list marks invitations awaiting acceptance. Resend invitation replaces the old link; obsolete queued invitation emails are cancelled by the worker. Duplicate emails cannot overwrite existing accounts; use Manage access for an existing couple. Invitation policy acceptance is retained in the database.
+
+### Returning to admin during two-step sign-in
+
+After entering the admin password, reopening /ivoryadmin or /ivoryadmin/login resumes the pending authenticator step. Reloading does not consume it. An incorrect, expired or reused code keeps the entry form visible for another attempt. Already authenticated visits to the code address return to admin. Truly expired/lost browser sessions still require signing in again; two-step verification is retained. Real Android app-switch behaviour must be checked on the user's device after deployment.

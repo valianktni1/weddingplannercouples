@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS purchases(id TEXT PRIMARY KEY,wedding_id TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS webhook_events(id TEXT PRIMARY KEY,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS bank_receipts(purchase_id TEXT PRIMARY KEY,transaction_id TEXT UNIQUE NOT NULL,confirmed_by TEXT NOT NULL,confirmed_at REAL NOT NULL,FOREIGN KEY(purchase_id) REFERENCES purchases(id));
 CREATE TABLE IF NOT EXISTS paypal_receipts(purchase_id TEXT PRIMARY KEY,transaction_id TEXT UNIQUE NOT NULL,confirmed_by TEXT NOT NULL,confirmed_at REAL NOT NULL,FOREIGN KEY(purchase_id) REFERENCES purchases(id));
+CREATE TABLE IF NOT EXISTS policy_acceptances(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT NOT NULL,wedding_id TEXT NOT NULL,terms TEXT NOT NULL,privacy TEXT NOT NULL,accepted REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS website_slugs(slug TEXT PRIMARY KEY,wedding_id TEXT NOT NULL,FOREIGN KEY(wedding_id) REFERENCES weddings(id) ON DELETE CASCADE);
 '''
 

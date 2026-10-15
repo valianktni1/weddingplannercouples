@@ -1,3 +1,12 @@
+Ivory Wedding Planner v1.0.6 — invitations and admin 2FA resumption, 15 October 2026
+
+103 backend tests passed, including 16 new onboarding/authentication cases. Covers pending challenge resumption, reload and wrong-code retry, expiry requiring password, invitation validation/rollback, duplicate-account protection, CSRF/role boundaries, complimentary access without a purchase, trial start on acceptance, single-use/expired/replaced links, stale invitation mail cancellation, resending after expired-token housekeeping, suspended-account rejection and durable frozen policy acceptance.
+5 JavaScript merge cases, admin script syntax and Python compilation passed.
+Chromium served-app tests passed for admin password/2FA, reopening admin and login during pending authentication, reload, incorrect-code retry, creating a complimentary invitation, queued email, pending status/resend control, welcome/password/terms acceptance and entry into the couple planner with correct names/access date. Four widths (320/390/736/1024), light/dark, no overflow or JavaScript errors. Mobile welcome rendering visually checked.
+No real email, payment or external SMTP call was made. Exact Android authenticator app switching and production invitation delivery require a user-device check after updating TrueNAS. The email worker interval is unchanged.
+
+Earlier verification (historical):
+
 Ivory Wedding Planner v1.0.5 — bank settings save fix, 15 October 2026
 
 87 backend tests passed; 5 JavaScript merge scenarios and admin script syntax check passed.

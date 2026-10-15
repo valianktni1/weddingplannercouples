@@ -90,6 +90,9 @@ def current_mail(db,row,settings,now):
             t=db.execute('SELECT * FROM tokens WHERE hash=? AND kind=? AND used=0 AND expires>?',(digest(path[len(prefix):]),kind,now.timestamp())).fetchone()
             if not t: return None
     key=row['dedupe'] or ''
+    if key.startswith('welcome:'):
+        t=db.execute('SELECT t.* FROM tokens t JOIN users u ON u.id=t.user_id JOIN weddings w ON w.id=t.wedding_id WHERE t.hash=? AND t.kind="welcome" AND t.used=0 AND t.expires>? AND u.verified=0 AND w.suspended=0',(key.split(':',1)[1],now.timestamp())).fetchone()
+        return row['body'] if t else None
     if not key.startswith(('payment:','weekly:')): return row['body']
     parts=key.split(':',5);wid=parts[1]
     w=db.execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
@@ -125,6 +128,11 @@ def deliver(db,settings,now=None,secret=None):
                 ('failed' if attempts>=5 else 'retry',attempts,time.time()+min(3600,60*2**attempts),delivery_error(exc),row['id']))
         db.commit()
 
+def prune_tokens(db,now):
+    # Retain an unaccepted welcome record so an expired invitation can be resent
+    # even after normal token housekeeping. It remains unusable after expiry.
+    db.execute('DELETE FROM tokens WHERE expires<? AND NOT(kind="welcome" AND used=0)',(now-86400*7,))
+
 def run():
     secret=initialise(DATA);BACKUPS.mkdir(parents=True,exist_ok=True)
     while True:
@@ -133,7 +141,7 @@ def run():
             db=connect(DATA/'planner.sqlite3');settings=config(db);now=datetime.now(ZoneInfo('UTC'))
             db.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             db.execute('DELETE FROM rate_limits WHERE reset<?',(time.time(),))
-            db.execute('DELETE FROM tokens WHERE expires<?',(time.time()-86400*7,))
+            prune_tokens(db,time.time())
             schedule(db,settings,now);db.commit();deliver(db,settings,secret=secret)
             db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('worker_heartbeat',json.dumps(time.time())));db.commit()
             local=now.astimezone(ZoneInfo(settings['timezone']));stamp=local.date().isoformat()

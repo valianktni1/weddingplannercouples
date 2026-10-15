@@ -1,3 +1,9 @@
+## v1.0.6 follow-up — onboarding and admin sign-in
+
+The previous admin flow only managed existing couple accounts; it lacked an invitation-led creation path. Added validated admin creation and resending, complete welcome/password/terms acceptance, verification through the invitation, full trial start at acceptance, fixed complimentary end date, existing-account collision protection and a durable policy acceptance record. No real recipient was contacted during testing.
+
+Reopening the protected admin page during pending 2FA previously redirected towards password login. Wrong-code errors replaced the form with a generic message. Pending admin entry now resumes its challenge, wrong codes retain the form, and complete/expired challenges redirect appropriately. Browser tests cover reload/reopen/return and retry; the exact Android authenticator app handover cannot be reproduced in this environment and remains a live-device confirmation. Session expiry and cookie loss are not bypassed.
+
 ## v1.0.5 follow-up — bank default settings
 
 Found that a grouped account number such as `00 12 34 56` exceeded the ten-character input limit and could be truncated to seven digits. Expanded routing input limits; server normalises ordinary and Unicode whitespace before strict digit checks. Save errors previously appeared above the long form and could be missed; feedback now scrolls into view and failed inputs stay intact. Verified choosing bank as default, saving the full form and reloading preserves the selection and leading-zero account number. Live installation errors beyond these reproduced cases still need their specific message.

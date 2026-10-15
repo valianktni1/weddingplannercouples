@@ -21,7 +21,7 @@ from .core import connect, initialise, config, digest, cipher, valid_totp, empty
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
 
-VERSION='1.0.5'
+VERSION='1.0.6'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -57,6 +57,10 @@ def create_app(test_config=None):
         db().execute('INSERT INTO sessions VALUES(?,?,?,?,?,?)',tuple(row.values()))
         g.cookie=raw
         return row
+    def pending_admin():
+        uid=g.session.get('pending')
+        return db().execute('SELECT * FROM users WHERE id=? AND role="admin"',(uid,)).fetchone() if uid else None
+    def admin_next(u): return '/ivoryadmin/two-step' if u['totp'] else '/ivoryadmin/two-step/setup'
     def rate(name,limit=20,seconds=900,per_ip=True):
         # The untrusted X-Forwarded-For header is deliberately not used.
         key=digest(name+'|'+((request.remote_addr or 'unknown') if per_ip else 'account'))
@@ -73,6 +77,7 @@ def create_app(test_config=None):
             @wraps(fn)
             def wrapped(*args,**kwargs):
                 if not g.user:
+                    if admin and pending_admin() and not request.path.startswith('/api/'): return redirect(admin_next(pending_admin()))
                     if request.path.startswith('/api/'): abort(401)
                     return redirect('/ivoryadmin/login' if admin else '/login')
                 if admin and g.user['role']!='admin': abort(403)
@@ -210,7 +215,10 @@ def create_app(test_config=None):
     @app.route('/ivoryadmin/login',methods=['GET','POST'])
     def login():
         admin=request.path.startswith('/ivoryadmin')
-        if request.method=='GET': return render_template('auth.html',mode='login',title='Ivory admin sign-in' if admin else 'Welcome back')
+        if request.method=='GET':
+            if admin and g.user and g.user['role']=='admin': return redirect('/ivoryadmin')
+            if admin and pending_admin(): return redirect(admin_next(pending_admin()))
+            return render_template('auth.html',mode='login',title='Ivory admin sign-in' if admin else 'Welcome back')
         email=request.form.get('email','').lower().strip();rate('login-ip',300);rate('login-'+email,8,per_ip=False)
         user=db().execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
         if not user or not check_password_hash(user['password'],request.form.get('password','')) or (user['role']=='admin')!=admin:
@@ -248,7 +256,8 @@ def create_app(test_config=None):
     def setup_totp():
         uid=g.session['pending'] or (g.user['id'] if g.user and g.user['role']=='admin' else None)
         u=db().execute('SELECT * FROM users WHERE id=? AND role="admin"',(uid,)).fetchone() if uid else None
-        if not u or u['totp']: abort(403)
+        if not u: return redirect('/ivoryadmin/login')
+        if u['totp']: return redirect('/ivoryadmin/two-step')
         setup=g.session['setup_secret']
         if not setup:
             setup=cipher(secret).encrypt(base64.b32encode(secrets.token_bytes(20)).decode().rstrip('=').encode()).decode()
@@ -260,7 +269,9 @@ def create_app(test_config=None):
             if db().execute('SELECT totp FROM users WHERE id=?',(uid,)).fetchone()['totp']:
                 abort(403,description='Two-step verification was already enrolled.')
             counter=valid_totp(plain,request.form.get('code',''))
-            if counter is None: raise ValueError('The authenticator code did not match. Check your phone time.')
+            if counter is None:
+                db().rollback()
+                return redirect('/ivoryadmin/two-step/setup?retry=1')
             codes=[secrets.token_hex(5) for _ in range(8)]
             db().execute('UPDATE users SET totp=?,recovery=?,totp_last=? WHERE id=?',(setup,json.dumps([digest(c) for c in codes]),counter,uid))
             rotated(user=uid);audit('Admin two-step sign-in enrolled')
@@ -273,7 +284,8 @@ def create_app(test_config=None):
     @app.route('/ivoryadmin/two-step',methods=['GET','POST'])
     def two_step():
         u=db().execute('SELECT * FROM users WHERE id=? AND role="admin"',(g.session['pending'],)).fetchone()
-        if not u or not u['totp']: abort(403)
+        if not u or not u['totp']:
+            return redirect('/ivoryadmin' if g.user and g.user['role']=='admin' else '/ivoryadmin/login')
         if request.method=='GET': return render_template('two_step.html',setup=False)
         rate('totp-'+u['id'],8,per_ip=False);code=request.form.get('code','').strip()
         db().execute('BEGIN IMMEDIATE')
@@ -283,7 +295,7 @@ def create_app(test_config=None):
             db().execute('UPDATE users SET totp_last=? WHERE id=?',(counter,u['id']))
         elif digest(code) in recovery:
             recovery.remove(digest(code));db().execute('UPDATE users SET recovery=? WHERE id=?',(json.dumps(recovery),u['id']))
-        else: raise ValueError('Code not recognised. Use a new authenticator code or an unused recovery code.')
+        else: return render_template('two_step.html',setup=False,error='That code did not match or has expired. Enter the latest code from your authenticator, or an unused recovery code.'),400
         rotated(user=u['id']);return redirect('/ivoryadmin')
     @app.get('/app')
     @auth()
@@ -554,7 +566,7 @@ def create_app(test_config=None):
         couples=[]
         for w in db().execute('SELECT * FROM weddings ORDER BY created DESC'):
             s=json.loads(w['state']);emails=[r['email'] for r in db().execute('SELECT email FROM users JOIN members m ON m.user_id=users.id WHERE m.wedding_id=?',(w['id'],))]
-            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'published':bool(json.loads(w['site']).get('published'))})
+            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'published':bool(json.loads(w['site']).get('published')),'invitation_pending':bool(db().execute('SELECT 1 FROM tokens t JOIN users u ON u.id=t.user_id WHERE t.wedding_id=? AND t.kind="welcome" AND u.verified=0',(w['id'],)).fetchone())})
         usage=shutil.disk_usage(app.config['DATA_DIR'])
         backups=list(Path(app.config['BACKUP_DIR']).glob('planner-*.tar.gz'))
         deliveries=[dict(r) for r in db().execute('SELECT id,to_address,subject,status,attempts,last_error,created FROM mail ORDER BY created DESC LIMIT 30')]
@@ -568,8 +580,65 @@ def create_app(test_config=None):
             c=next((c for c in couples if c['id']==p['wedding_id']),{})
             paypal_payments.append({**paypal_details(p),'wedding_id':p['wedding_id'],'names':c.get('names',''),'email':c.get('email',''),'transaction_id':p['transaction_id']})
         settings=config(db());public_settings={k:v for k,v in settings.items() if k!='smtp_password_encrypted'}
-        return jsonify(couples=couples,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
+        return jsonify(invitation_default_until=access_end(settings),couples=couples,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
+    def welcome_email(uid,wid,email):
+        settings=config(db())
+        if not smtp_ready(settings): raise ValueError('Save and test your email settings before sending a couple invitation.')
+        if not settings['terms_text'].strip() or not settings['privacy_text'].strip(): raise ValueError('Save your terms and privacy notice in Pricing & trials before inviting a couple.')
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
+        db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind="welcome"',(uid,))
+        value=token('welcome',user=uid,wedding=wid,email=email,hours=24*7,payload={'terms':settings['terms_text'],'privacy':settings['privacy_text']})
+        label='Complimentary access is included with your Weddings By Mark booking.' if w['access_kind']=='Complimentary' else 'Your free trial starts when you accept this invitation.'
+        queue(email,'Your wedding planner invitation',label+'\nChoose your own password and get started:\n'+app.config['APP_URL']+'/welcome/'+value+'\nThis invitation lasts seven days. Your partner can join from inside your shared planner.',dedupe='welcome:'+digest(value))
+    @app.post('/api/admin/couples/invite')
+    @auth(admin=True)
+    def admin_invite_couple():
+        body=json_body();email=body.get('email','');names=body.get('names');day=body.get('date','');kind=body.get('access','Trial');until=body.get('until','')
+        if not isinstance(email,str) or not valid_email(email.strip().lower()): raise ValueError('Enter the couple’s main email address.')
+        email=email.strip().lower()
+        if not isinstance(names,list) or len(names)!=2 or any(not isinstance(n,str) or not n.strip() or len(n)>100 or any(c in n for c in '\r\n\0') for n in names): raise ValueError('Enter both partners’ names, up to 100 characters each.')
+        if not date_valid(day) or kind not in ['Trial','Complimentary']: raise ValueError('Choose a valid wedding date and trial or complimentary access.')
+        if kind=='Complimentary' and (not date_valid(until,False) or until<date.today().isoformat()): raise ValueError('Choose a complimentary access end date today or later.')
+        rate('admin-invite',50,3600,per_ip=False);db().execute('BEGIN IMMEDIATE')
+        if db().execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): abort(409,description='This email already has an account. Find it in Couples & access to manage access or resend its invitation. No existing plans were changed.')
+        uid=secrets.token_hex(16);wid=secrets.token_hex(16);state=empty_state();state.update(names=[n.strip() for n in names],email=email,date=day)
+        if kind=='Trial': until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
+        db().execute('INSERT INTO users(id,email,password,created) VALUES(?,?,?,?)',(uid,email,generate_password_hash(secrets.token_urlsafe(48)),time.time()))
+        db().execute('INSERT INTO weddings(id,state,access_kind,access_until,created) VALUES(?,?,?,?,?)',(wid,json.dumps(state),kind,until,time.time()))
+        db().execute('INSERT INTO members VALUES(?,?)',(wid,uid));welcome_email(uid,wid,email)
+        audit('Couple invited with '+kind+' access until '+until,wid)
+        return jsonify(ok=True,wedding_id=wid,message='Invitation email queued. They will choose their own password.'),201
+    @app.post('/api/admin/couples/<wid>/resend-invitation')
+    @auth(admin=True)
+    def admin_resend_welcome(wid):
+        rate('admin-resend-invite',20,3600,per_ip=False)
+        row=db().execute('SELECT u.* FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND u.verified=0 AND EXISTS(SELECT 1 FROM tokens t WHERE t.user_id=u.id AND t.kind="welcome" AND t.wedding_id=m.wedding_id)',(wid,)).fetchone()
+        if not row: raise ValueError('This invitation was already accepted or the account was not created by invitation.')
+        welcome_email(row['id'],wid,row['email']);audit('Couple invitation resent',wid);return jsonify(ok=True)
+    @app.route('/welcome/<value>',methods=['GET','POST'])
+    def welcome(value):
+        t=token_row(value,'welcome')
+        if not t: return render_template('message.html',title='Invitation no longer available',message='This invitation has expired, was replaced or has already been accepted. Sign in if you have set your password, or ask Ivory Digital for a new invitation.'),400
+        u=db().execute('SELECT * FROM users WHERE id=? AND role="couple" AND verified=0',(t['user_id'],)).fetchone()
+        w=db().execute('SELECT w.* FROM weddings w JOIN members m ON m.wedding_id=w.id WHERE w.id=? AND m.user_id=?',(t['wedding_id'],t['user_id'])).fetchone()
+        if not u or not w or w['suspended']: abort(403)
+        policies=json.loads(t['payload']);state=json.loads(w['state'])
+        def form(error=None): return render_template('welcome.html',email=u['email'],names=' & '.join(state['names']),policies=policies,kind=w['access_kind'],until=date.fromisoformat(w['access_until']).strftime('%d %B %Y'),trial_days=config(db())['trial_days'],error=error)
+        if request.method=='GET': return form()
+        rate('accept-invitation',30,3600);password=request.form.get('password','')
+        if not password_ok(password): return form('Choose a password of 12 to 200 characters.'),400
+        if request.form.get('accept_terms')!='yes': return form('Please read and accept the terms and privacy notice.'),400
+        db().execute('BEGIN IMMEDIATE')
+        consumed=db().execute('UPDATE tokens SET used=1 WHERE hash=? AND used=0 AND expires>?',(t['hash'],time.time()))
+        updated=db().execute('UPDATE users SET password=?,verified=1 WHERE id=? AND verified=0',(generate_password_hash(password),u['id']))
+        if not consumed.rowcount or not updated.rowcount: abort(409,description='This invitation has already been accepted. Please sign in.')
+        db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind IN ("welcome","verify","reset")',(u['id'],))
+        if w['access_kind']=='Trial':
+            until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
+            db().execute('UPDATE weddings SET access_until=max(access_until,?) WHERE id=?',(until,w['id']))
+        db().execute('INSERT INTO policy_acceptances(user_id,wedding_id,terms,privacy,accepted) VALUES(?,?,?,?,?)',(u['id'],w['id'],policies['terms'],policies['privacy'],time.time()))
+        rotated(user=u['id']);audit('Couple invitation accepted; terms and privacy notice recorded',w['id']);return redirect('/app')
     @app.post('/api/admin/access/<wid>')
     @auth(admin=True)
     def admin_access(wid):
