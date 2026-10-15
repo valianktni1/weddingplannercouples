@@ -2,8 +2,6 @@
 import json
 import os
 import shutil
-import smtplib
-import ssl
 import tarfile
 import tempfile
 import time
@@ -12,8 +10,8 @@ import urllib.parse
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
-from email.message import EmailMessage
 from .core import connect, initialise, config, digest
+from .mail_service import smtp_ready, send_email, delivery_error
 
 DATA=Path(os.getenv('DATA_DIR','/data'));BACKUPS=Path(os.getenv('BACKUP_DIR','/backups'))
 
@@ -110,36 +108,25 @@ def current_mail(db,row,settings,now):
     remaining=round(payment['amount']-payment['paid'],2)
     return f'Your {supplier["name"]} {payment["title"]} has £{remaining:.2f} remaining, due {payment["due"]}. Open your planner to check the agreed payment details. This reminder does not make a payment.'
 
-def deliver(db,settings,now=None):
+def deliver(db,settings,now=None,secret=None):
     now=now or datetime.now(ZoneInfo('UTC'))
-    host=os.getenv('SMTP_HOST')
-    if not host or not settings['sender']: return
+    if not smtp_ready(settings): return
+    secret=secret or (DATA/'app-secret').read_text().strip()
     for row in db.execute('SELECT * FROM mail WHERE status IN ("queued","retry") AND next_attempt<=? ORDER BY created LIMIT 20',(time.time(),)).fetchall():
         body=current_mail(db,row,settings,now)
         if body is None:
             db.execute('UPDATE mail SET status="cancelled",last_error=NULL WHERE id=?',(row['id'],));db.commit();continue
-        message=EmailMessage();message['From']=settings['sender'];message['To']=row['to_address'];message['Subject']=row['subject']
-        message['Message-ID']='<'+row['id']+'@planner.ivorydigital.uk>'
-        if settings['reply_to']: message['Reply-To']=settings['reply_to']
-        message.set_content(body)
         try:
-            port=int(os.getenv('SMTP_PORT','587'))
-            if os.getenv('SMTP_SECURITY','starttls')=='ssl':
-                smtp=smtplib.SMTP_SSL(host,port,timeout=20,context=ssl.create_default_context())
-            else:
-                smtp=smtplib.SMTP(host,port,timeout=20);smtp.starttls(context=ssl.create_default_context())
-            with smtp:
-                if os.getenv('SMTP_USER'): smtp.login(os.environ['SMTP_USER'],os.environ['SMTP_PASSWORD'])
-                smtp.send_message(message)
+            send_email(settings,secret,row['to_address'],row['subject'],body,row['id'])
             db.execute('UPDATE mail SET status="sent",attempts=attempts+1,last_error=NULL WHERE id=?',(row['id'],))
         except Exception as exc:
             attempts=row['attempts']+1
             db.execute('UPDATE mail SET status=?,attempts=?,next_attempt=?,last_error=? WHERE id=?',
-                ('failed' if attempts>=5 else 'retry',attempts,time.time()+min(3600,60*2**attempts),type(exc).__name__,row['id']))
+                ('failed' if attempts>=5 else 'retry',attempts,time.time()+min(3600,60*2**attempts),delivery_error(exc),row['id']))
         db.commit()
 
 def run():
-    initialise(DATA);BACKUPS.mkdir(parents=True,exist_ok=True)
+    secret=initialise(DATA);BACKUPS.mkdir(parents=True,exist_ok=True)
     while True:
         db=None
         try:
@@ -147,7 +134,7 @@ def run():
             db.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             db.execute('DELETE FROM rate_limits WHERE reset<?',(time.time(),))
             db.execute('DELETE FROM tokens WHERE expires<?',(time.time()-86400*7,))
-            schedule(db,settings,now);db.commit();deliver(db,settings)
+            schedule(db,settings,now);db.commit();deliver(db,settings,secret=secret)
             db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('worker_heartbeat',json.dumps(time.time())));db.commit()
             local=now.astimezone(ZoneInfo(settings['timezone']));stamp=local.date().isoformat()
             last=db.execute('SELECT value FROM settings WHERE key="last_backup_day"').fetchone()

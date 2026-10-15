@@ -19,7 +19,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageOps, UnidentifiedImageError
 from .core import connect, initialise, config, digest, cipher, valid_totp, empty_state, validate_state, access_end, date_valid
 
-VERSION='1.0.1'
+from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
+
+VERSION='1.0.2'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -558,8 +560,9 @@ def create_app(test_config=None):
         history=[dict(r) for r in db().execute('SELECT actor,action,wedding_id,created FROM audit ORDER BY id DESC LIMIT 100')]
         grants=[dict(r) for r in db().execute('SELECT * FROM support WHERE expires>?',(time.time(),))]
         paid=db().execute('SELECT coalesce(sum(amount),0) n FROM purchases WHERE status="paid"').fetchone()['n']
-        return jsonify(couples=couples,settings=config(db()),deliveries=deliveries,history=history,support=grants,
-            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':bool(os.getenv('SMTP_HOST')),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
+        settings=config(db());public_settings={k:v for k,v in settings.items() if k!='smtp_password_encrypted'}
+        return jsonify(couples=couples,settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
+            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
     @app.post('/api/admin/access/<wid>')
     @auth(admin=True)
     def admin_access(wid):
@@ -576,28 +579,63 @@ def create_app(test_config=None):
     def admin_settings():
         body=json_body();current=config(db())
         from .core import DEFAULT_SETTINGS
-        allowed=set(DEFAULT_SETTINGS)
+        allowed=(set(DEFAULT_SETTINGS)-{'smtp_password_encrypted'})|{'smtp_password','smtp_clear_password'}
         for key,value in body.items():
             if key not in allowed: raise ValueError('Unknown setting.')
+            if key=='smtp_password':
+                if not isinstance(value,str) or len(value)>2000 or '\r' in value or '\n' in value: raise ValueError('Check the SMTP password.')
+                continue
+            if key=='smtp_clear_password':
+                if type(value) is not bool: raise ValueError('Invalid password removal switch.')
+                continue
+            if key=='smtp_source' and value not in ['panel','environment']: raise ValueError('Choose where SMTP settings are supplied.')
+            if key=='smtp_host' and (not isinstance(value,str) or len(value)>253 or value and not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?',value)): raise ValueError('Enter the SMTP hostname, without https:// or a port.')
+            if key=='smtp_port' and (type(value) is not int or not 1<=value<=65535): raise ValueError('SMTP port must be between 1 and 65535.')
+            if key=='smtp_security' and value not in ['ssl','starttls']: raise ValueError('Choose SSL/TLS or STARTTLS.')
+            if key=='smtp_user' and (not isinstance(value,str) or len(value)>320 or any(c in value for c in '\r\n\0')): raise ValueError('Check the SMTP username.')
+
             if key in ['checkout_enabled','signups_enabled'] and type(value) is not bool: raise ValueError('Invalid switch.')
             if key=='price_pence' and value is not None and (type(value) is not int or not 100<=value<=1000000): raise ValueError('Price must be at least £1.')
             if key in ['trial_days','days_after_wedding','max_planning_days','backup_retention_days'] and (type(value) is not int or not 0<=value<=3650): raise ValueError('Invalid day allowance.')
             if key=='access_rule' and value not in ['wedding','fixed']: raise ValueError('Invalid access rule.')
-            if key in ['sender','reply_to'] and value and not valid_email(value): raise ValueError('Invalid email.')
+            if key in ['sender','reply_to'] and (not isinstance(value,str) or value and not valid_email(value)): raise ValueError('Invalid email.')
             if key in ['reminder_time','backup_time'] and (not isinstance(value,str) or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d',value)): raise ValueError('Invalid time.')
             if key=='timezone':
                 try: ZoneInfo(value)
                 except (ZoneInfoNotFoundError,ValueError,TypeError): raise ValueError('Use a valid timezone such as Europe/London.')
             if isinstance(value,str) and len(value)>10000: raise ValueError('Setting too long.')
             current[key]=value
+        password=body.get('smtp_password','');clear_password=body.get('smtp_clear_password',False)
+        if password and clear_password: raise ValueError('Enter a replacement password or remove it, not both.')
+        if password:
+            if current['smtp_source']!='panel': raise ValueError('Choose admin panel settings to save a new SMTP password.')
+            current['smtp_password_encrypted']=cipher(secret).encrypt(password.encode()).decode()
+        elif clear_password: current['smtp_password_encrypted']=''
         if current['checkout_enabled'] and (not current['price_pence'] or not current['refund_terms'] or not os.getenv('STRIPE_SECRET_KEY') or not os.getenv('STRIPE_WEBHOOK_SECRET')): raise ValueError('Set a price, refund terms and Stripe credentials before enabling checkout.')
-        if current['signups_enabled'] and (not os.getenv('SMTP_HOST') or not current['sender'] or not current['privacy_text'] or not current['terms_text']): raise ValueError('Configure email, privacy notice and terms before enabling sign-ups.')
-        for k,v in current.items(): db().execute('UPDATE settings SET value=? WHERE key=?',(json.dumps(v),k))
+        if current['signups_enabled'] and (not smtp_ready(current) or not current['privacy_text'] or not current['terms_text']): raise ValueError('Configure email, privacy notice and terms before enabling sign-ups.')
+        changed=set(body)-{'smtp_password','smtp_clear_password'}
+        if password or clear_password: changed.add('smtp_password_encrypted')
+        for k in changed: db().execute('UPDATE settings SET value=? WHERE key=?',(json.dumps(current[k]),k))
         audit('System settings updated');return jsonify(ok=True)
     @app.post('/api/admin/email-test')
     @auth(admin=True)
     def test_email():
-        queue(g.user['email'],'Ivory Planner email test','Your planner email service is working.');audit('Test email queued');return jsonify(ok=True)
+        rate('smtp-test',6,900,per_ip=False)
+        settings=config(db())
+        if not smtp_ready(settings): raise ValueError('Save the SMTP host, port, security, sender and required login details before sending a test.')
+        mid=secrets.token_hex(12)
+        db().execute('INSERT INTO mail(id,to_address,subject,body,status,created) VALUES(?,?,?,?,?,?)',
+            (mid,g.user['email'],'Ivory Planner email test','Your planner email service is working.','sending',time.time()))
+        audit('Test email requested');db().commit()
+        # Do not hold a database write lock while connecting to an external service.
+        try:
+            send_email(settings,secret,g.user['email'],'Ivory Planner email test','Your planner email service is working.',mid)
+        except Exception as exc:
+            message=delivery_error(exc)
+            db().execute('UPDATE mail SET status="failed",attempts=1,last_error=? WHERE id=?',(message,mid));db().commit()
+            return jsonify(error=message,delivery_id=mid),400
+        db().execute('UPDATE mail SET status="sent",attempts=1 WHERE id=?',(mid,));db().commit()
+        return jsonify(ok=True,status='sent',delivery_id=mid,message='Accepted by the email server. Check your admin inbox and spam folder.')
     @app.get('/api/admin/support/<wid>')
     @auth(admin=True)
     def view_support(wid):

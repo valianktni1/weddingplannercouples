@@ -1,3 +1,9 @@
+# v1.0.2 — email setup in superadmin
+
+Configure SMTP hostname, port, SSL/TLS or STARTTLS, username, encrypted password, sender and reply-to from Email & reminders. Blank password preserves the saved value; explicit removal and replacement are supported. Legacy server environment settings remain available. Test sends save the form first and report actual server acceptance or a fixed, safe failure hint. Tests are recorded separately from queued mail and are not retried automatically. Refresh delivery status preserves unsaved form edits. The worker uses saved settings without a restart; signup readiness uses the selected email configuration. No SMTP password or encrypted credential is returned in the admin API or audit log.
+
+Keep port 30063 for the planner; 30061 belongs to the tenant booking system. Corrected the admin port label and trial-start wording.
+
 # v1.0.1 — workflow audit and repairs
 
 Conflict-aware shared saves with a truthful pending indicator and downloadable recovery copy. Setup queues the actual partner invitation, and empty pre-existing accounts can join without deleting populated planners. Website changes use their own revision check; previous addresses remain valid and saved private drafts can be previewed. Guest links can be revoked without removing replies.

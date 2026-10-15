@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.1
+# Ivory Digital Wedding Planner — v1.0.2
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -88,7 +88,7 @@ sudo chmod 600 /mnt/apps/weddingplannercouples.env
 sudo nano /mnt/apps/weddingplannercouples.env
 ```
 
-Fill SMTP_HOST, SMTP_PORT, SMTP_SECURITY (`starttls` for port 587 or `ssl` for port 465), SMTP_USER and SMTP_PASSWORD. Leave Stripe fields blank until needed. Leave SECURE_COOKIES=1 for HTTPS deployment.
+You can leave the SMTP fields blank and configure email entirely in **Admin → Email & reminders** after creating your admin account. Enter the SMTP host, port, security, username and password there, along with sender/reply-to addresses. The password is encrypted with the app key and never returned to the browser. Select **Set up here in admin**, then use **Save & send test to my admin email**. SSL/TLS (usually 465) and STARTTLS (usually 587) are supported. The test reports mail-server acceptance or a clear connection/login error; check the inbox and spam folder too. Saved settings apply to the worker on its next cycle without a restart. Existing environment-based SMTP setups remain supported through **Use existing server settings**. Leave Stripe fields blank until needed. Leave SECURE_COOKIES=1 for HTTPS deployment.
 
 Compose reads this external file before starting the containers. Docker injects the values; the non-root application does not need permission to open the environment file itself. The app encryption key is created once inside the data folder; keep it in backups. Losing it prevents decrypting administrator authenticator secrets.
 
@@ -131,7 +131,7 @@ Enter a new password twice. It is hidden and not printed or included in shell hi
 
 ## 7. Complete launch settings and test the couple’s journey
 
-1. Admin → Email: set your sender and reply-to email. Send a test; check that the email history says **sent** and it actually arrives.
+1. Admin → Email & reminders: choose **Set up here in admin**, enter the SMTP connection and mailbox login details, sender and reply-to. Use **Save & send test to my admin email**. Check the acceptance message, delivery history and actual inbox/spam folder. **Refresh delivery status** preserves any unsaved form edits.
 2. Admin → Pricing: choose trial length, price/access rule if desired, and enter your own terms and privacy notice. Public sign-ups require SMTP and these notices.
 3. Open sign-ups for your test. Keep checkout closed.
 4. Register a test couple, verify their email, complete setup and invite a second email address.
@@ -215,4 +215,19 @@ python -m pytest -q
 
 Tests cover authentication/CSRF/roles, shared-record revision conflicts, access expiry, partner invitations, guest-specific RSVP and evening visibility, website escaping, private uploads, support boundaries, grants, verification/recovery, signed/idempotent Stripe webhooks, backup creation and reminder dedupe.
 
-The package also underwent a served-page JavaScript DOM smoke test against the running server: couple setup/saves, all couple pages, supplier/instalment/guest forms, handover export, website publication, administrator two-step sign-in and all admin pages. A downloadable Chromium runtime and Docker daemon were unavailable in the build workspace, so visual browser screenshots and Docker/TrueNAS runtime checks remain part of your pilot installation.
+The package also underwent a served-page JavaScript DOM smoke test against the running server: couple setup/saves, all couple pages, supplier/instalment/guest forms, handover export, website publication, administrator two-step sign-in and all admin pages. Chromium checks include the mobile admin email flow, secure transport choices, failed-login correction and light/dark layouts. Live provider delivery remains an installation check. A Docker daemon was unavailable in the build workspace; check Docker/TrueNAS runtime on the target installation.
+
+## Updating to v1.0.2 from the initial installation
+
+The update adds encrypted admin SMTP settings without replacing accounts, the database or the app key. Take a backup first, then pull and rebuild **both** app services:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+docker compose exec -T worker python manage.py backup
+git pull --ff-only
+docker compose up -d --build
+docker compose ps
+curl --fail http://127.0.0.1:30063/healthz
+```
+
+The health response should show v1.0.2. Refresh the admin page to load the new email controls. This planner uses port **30063**; port 30061 belongs to the separate tenant booking system.

@@ -1,3 +1,14 @@
+Ivory Wedding Planner v1.0.2 — SMTP admin follow-up, 15 October 2026
+
+48 backend tests passed (python3 -m pytest -q), including the original workflow regressions and 22 SMTP settings/transport cases.
+5 JavaScript merge regression scenarios passed.
+Chromium admin SMTP journey passed: authenticator login, admin SMTP settings and encrypted password privacy, STARTTLS/SSL transport through a fake test-only SMTP backend, login rejection/correction, delivery history and refresh retaining unsaved edits. Widths 320/390/736/1024 in light/dark had no page overflow or JavaScript errors. Mobile dark rendering inspected.
+Python compilation and all browser script syntax checks passed.
+No new dependencies or application data replacements are required. The existing encryption key is preserved. The worker reloads saved SMTP configuration each cycle.
+Real SMTP provider credentials, server acceptance and inbox placement still require the user’s mailbox test after deployment. Test transports never sent an external email. Docker/TrueNAS rebuild of v1.0.2 was not performed in this workspace.
+
+Earlier v1.0.1 verification (historical):
+
 Ivory Wedding Planner v1.0.1 — build verification, 14 October 2026
 
 26 backend tests passed (python3 -m pytest -q).

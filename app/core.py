@@ -37,7 +37,9 @@ DEFAULT_SETTINGS = {'price_pence': None, 'trial_days': 14, 'days_after_wedding':
     'max_planning_days': 1095, 'access_rule': 'wedding', 'checkout_enabled': False,
     'sender': '', 'reply_to': '', 'timezone': 'Europe/London', 'reminder_time': '09:00',
     'backup_time': '02:00', 'backup_retention_days': 14, 'refund_terms': '',
-    'privacy_text': '', 'terms_text': '', 'signups_enabled': False}
+    'privacy_text': '', 'terms_text': '', 'signups_enabled': False,
+    'smtp_source': 'environment', 'smtp_host': '', 'smtp_port': 587,
+    'smtp_security': 'starttls', 'smtp_user': '', 'smtp_password_encrypted': ''}
 
 def connect(path):
     db = sqlite3.connect(path, timeout=20)
