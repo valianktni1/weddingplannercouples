@@ -21,7 +21,7 @@ from .core import connect, initialise, config, digest, cipher, valid_totp, empty
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
 
-VERSION='1.0.3'
+VERSION='1.0.4'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -317,7 +317,7 @@ def create_app(test_config=None):
     def billing_info():
         w=wedding();settings=config(db())
         pending=paypal_pending(w['id'])
-        return jsonify(provider=settings['payment_provider'],paypal_request=paypal_details(pending) if pending else None,enabled=settings['checkout_enabled'],already_active=w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat(),price_pence=settings['price_pence'],
+        return jsonify(provider=settings['payment_provider'],payment_request=paypal_details(pending) if pending else None,paypal_request=paypal_details(pending) if pending and json.loads(pending['terms']).get('provider')=='paypalme' else None,enabled=settings['checkout_enabled'],already_active=w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat(),price_pence=settings['price_pence'],
             access_until=access_end(settings,json.loads(w['state'])['date']),refund_terms=settings['refund_terms'],terms_text=settings['terms_text'])
     @app.post('/api/partner/invite')
     @auth()
@@ -562,13 +562,13 @@ def create_app(test_config=None):
         grants=[dict(r) for r in db().execute('SELECT * FROM support WHERE expires>?',(time.time(),))]
         paid=db().execute('SELECT coalesce(sum(amount),0) n FROM purchases WHERE status="paid"').fetchone()['n']
         paypal_payments=[]
-        for p in db().execute('SELECT p.*,r.transaction_id FROM purchases p LEFT JOIN paypal_receipts r ON r.purchase_id=p.id ORDER BY p.created DESC LIMIT 500'):
+        for p in db().execute('SELECT p.*,coalesce(r.transaction_id,b.transaction_id) transaction_id FROM purchases p LEFT JOIN paypal_receipts r ON r.purchase_id=p.id LEFT JOIN bank_receipts b ON b.purchase_id=p.id ORDER BY p.created DESC LIMIT 500'):
             terms=json.loads(p['terms'])
-            if terms.get('provider')!='paypalme': continue
+            if terms.get('provider') not in ['paypalme','bank']: continue
             c=next((c for c in couples if c['id']==p['wedding_id']),{})
             paypal_payments.append({**paypal_details(p),'wedding_id':p['wedding_id'],'names':c.get('names',''),'email':c.get('email',''),'transaction_id':p['transaction_id']})
         settings=config(db());public_settings={k:v for k,v in settings.items() if k!='smtp_password_encrypted'}
-        return jsonify(couples=couples,paypal_payments=paypal_payments,settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
+        return jsonify(couples=couples,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
     @app.post('/api/admin/access/<wid>')
     @auth(admin=True)
@@ -597,7 +597,12 @@ def create_app(test_config=None):
             if key=='smtp_clear_password':
                 if type(value) is not bool: raise ValueError('Invalid password removal switch.')
                 continue
-            if key=='payment_provider' and value not in ['stripe','paypalme']: raise ValueError('Choose PayPal.Me or Stripe.')
+            if key=='payment_provider' and value not in ['stripe','paypalme','bank']: raise ValueError('Choose bank transfer, PayPal.Me or Stripe.')
+            if key in ['bank_name','bank_account_name','bank_instructions'] and (not isinstance(value,str) or len(value)>(500 if key=='bank_instructions' else 100) or '\r' in value or '\0' in value or key!='bank_instructions' and '\n' in value): raise ValueError('Check the bank account name, bank name and instructions.')
+            if key in ['bank_sort_code','bank_account_number']:
+                if not isinstance(value,str): raise ValueError('Bank details must be entered as text so leading zeros are kept.')
+                value=re.sub(r'[ -]','',value.strip())
+                if value and not re.fullmatch(r'\d{'+('6' if key=='bank_sort_code' else '8')+'}',value,flags=re.ASCII): raise ValueError('Use a six-digit sort code and eight-digit UK account number.')
             if key=='paypal_me_url': value=paypal_link(value)
             if key=='smtp_source' and value not in ['panel','environment']: raise ValueError('Choose where SMTP settings are supplied.')
             if key=='smtp_host' and (not isinstance(value,str) or len(value)>253 or value and not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?',value)): raise ValueError('Enter the SMTP hostname, without https:// or a port.')
@@ -626,6 +631,7 @@ def create_app(test_config=None):
             if not current['price_pence'] or not current['refund_terms']: raise ValueError('Set a price and refund terms before opening payments.')
             if current['payment_provider']=='stripe' and (not os.getenv('STRIPE_SECRET_KEY') or not os.getenv('STRIPE_WEBHOOK_SECRET')): raise ValueError('Configure Stripe credentials before opening Stripe checkout.')
             if current['payment_provider']=='paypalme' and not current['paypal_me_url']: raise ValueError('Enter your PayPal.Me profile link before opening payments.')
+            if current['payment_provider']=='bank' and not bank_ready(current): raise ValueError('Save the account holder, six-digit sort code and eight-digit account number before opening bank payments.')
         if current['signups_enabled'] and (not smtp_ready(current) or not current['privacy_text'] or not current['terms_text']): raise ValueError('Configure email, privacy notice and terms before enabling sign-ups.')
         changed=set(body)-{'smtp_password','smtp_clear_password'}
         if password or clear_password: changed.add('smtp_password_encrypted')
@@ -671,103 +677,164 @@ def create_app(test_config=None):
         if not match: raise ValueError('Use https://paypal.me/yourname without an amount, query or extra path.')
         return 'https://paypal.me/'+match.group(1)
 
+    def bank_ready(settings):
+        return bool(settings.get('bank_account_name','').strip() and re.fullmatch(r'[0-9]{6}',settings.get('bank_sort_code','')) and re.fullmatch(r'[0-9]{8}',settings.get('bank_account_number','')))
+
     def paypal_pending(wid):
+        # Legacy helper name retained for compatibility; now covers both manual methods.
         for p in db().execute('SELECT * FROM purchases WHERE wedding_id=? AND status IN ("pending","reported") ORDER BY created DESC',(wid,)):
-            if json.loads(p['terms']).get('provider')=='paypalme': return p
+            if json.loads(p['terms']).get('provider') in ['paypalme','bank']: return p
         return None
 
     def paypal_details(p):
-        terms=json.loads(p['terms'])
-        return {'id':p['id'],'reference':'IP-'+p['id'][:12].upper(),'amount_pence':p['amount'],'currency':'GBP',
-            'status':p['status'],'recipient_profile':paypal_link(terms['paypal_me_url']).rsplit('/',1)[-1],'access_until':terms['access_until'],'refund_terms':terms['refund_terms'],
-            'url':paypal_link(terms['paypal_me_url'])+'/'+format(p['amount']/100,'.2f')+'GBP',
-            'reported_transaction':terms.get('reported_transaction',''),'created':p['created']}
+        t=json.loads(p['terms']);provider=t['provider']
+        result={'id':p['id'],'provider':provider,'reference':'IP-'+p['id'][:12].upper(),'amount_pence':p['amount'],'currency':'GBP',
+            'status':p['status'],'access_until':t['access_until'],'refund_terms':t['refund_terms'],'terms_text':t.get('terms_text',''),
+            'accepted':bool(t.get('accepted_at')),'reported_transaction':t.get('reported_transaction',''),
+            'reported_payer':t.get('reported_payer',''),'reported_date':t.get('reported_date',''),'created':p['created']}
+        if provider=='paypalme':
+            link=paypal_link(t['paypal_me_url']);result.update(recipient_profile=link.rsplit('/',1)[-1],url=link+'/'+format(p['amount']/100,'.2f')+'GBP')
+        else: result['bank']=t['bank']
+        return result
+
+    def needs_payment(w):
+        if w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat(): raise ValueError('You already have full access. No payment is needed.')
+
+    def prepare_manual(w,settings,provider,accepted=False):
+        needs_payment(w)
+        pending=paypal_pending(w['id'])
+        if pending:
+            if json.loads(pending['terms'])['provider']!=provider: raise ValueError('There is already a request using another payment method. Check it and close it as unpaid before preparing a different one.')
+            return pending
+        if db().execute('SELECT 1 FROM purchases WHERE wedding_id=? AND status="pending"',(w['id'],)).fetchone(): raise ValueError('An earlier checkout needs checking by Ivory Digital before another payment is prepared.')
+        if provider not in ['paypalme','bank'] or not settings['price_pence'] or not settings['refund_terms']: raise ValueError('Set a price, refund terms and a manual payment method first.')
+        if provider=='paypalme' and not settings['paypal_me_url']: raise ValueError('Save the PayPal.Me link first.')
+        if provider=='bank' and not bank_ready(settings): raise ValueError('Save the account holder, sort code and UK account number in Pricing & trials first.')
+        pid=secrets.token_hex(16)
+        terms={'provider':provider,'price_pence':settings['price_pence'],'access_until':access_end(settings,json.loads(w['state'])['date']),
+            'refund_terms':settings['refund_terms'],'terms_text':settings['terms_text'],'accepted_at':time.time() if accepted else None,
+            'checkout_email':g.user['email'] if accepted else ''}
+        if provider=='paypalme': terms['paypal_me_url']=paypal_link(settings['paypal_me_url'])
+        else: terms['bank']={k:settings['bank_'+k] for k in ['name','account_name','sort_code','account_number','instructions']}
+        db().execute('INSERT INTO purchases(id,wedding_id,amount,terms,created) VALUES(?,?,?,?,?)',(pid,w['id'],settings['price_pence'],json.dumps(terms),time.time()))
+        audit(('Bank transfer' if provider=='bank' else 'PayPal')+' payment instructions prepared',w['id'])
+        return db().execute('SELECT * FROM purchases WHERE id=?',(pid,)).fetchone()
+
+    def manual_purchase(pid,wid=None):
+        p=db().execute('SELECT * FROM purchases WHERE id=?',(pid,)).fetchone()
+        if not p or wid is not None and p['wedding_id']!=wid or json.loads(p['terms']).get('provider') not in ['paypalme','bank']: abort(404)
+        return p
 
     @app.get('/upgrade')
     @auth()
     def upgrade_page(): wedding();return render_template('upgrade.html')
 
+    @app.post('/api/payments/start')
     @app.post('/api/paypal/start')
     @auth()
     def paypal_start():
         w=wedding();settings=config(db());body=json_body()
-        if w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat(): raise ValueError('You already have full access. No payment is needed.')
-        if not settings['checkout_enabled'] or settings['payment_provider']!='paypalme': raise ValueError('PayPal payments are not open. Contact Ivory Digital for access.')
+        needs_payment(w)
+        if not settings['checkout_enabled'] or settings['payment_provider'] not in ['paypalme','bank']: raise ValueError('Manual payments are not open. Contact Ivory Digital for access.')
         if body.get('accept_terms') is not True: raise ValueError('Read and accept the payment terms before continuing.')
-        rate('paypal-start-'+w['id'],30,3600,per_ip=False)
-        db().execute('BEGIN IMMEDIATE')
-        w=wedding()
-        if w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat(): raise ValueError('You already have full access. No payment is needed.')
-        pending=paypal_pending(w['id'])
-        if pending: return jsonify(request=paypal_details(pending))
-        if db().execute('SELECT 1 FROM purchases WHERE wedding_id=? AND status="pending"',(w['id'],)).fetchone(): raise ValueError('An earlier checkout needs checking by Ivory Digital before another payment is prepared.')
-        if not settings['price_pence'] or not settings['refund_terms'] or not settings['paypal_me_url']: raise ValueError('Payment settings are incomplete. Contact Ivory Digital.')
-        pid=secrets.token_hex(16)
-        terms={'provider':'paypalme','price_pence':settings['price_pence'],'access_until':access_end(settings,json.loads(w['state'])['date']),
-            'refund_terms':settings['refund_terms'],'terms_text':settings['terms_text'],'paypal_me_url':paypal_link(settings['paypal_me_url']),
-            'checkout_email':g.user['email'],'accepted_at':time.time()}
-        db().execute('INSERT INTO purchases(id,wedding_id,amount,terms,created) VALUES(?,?,?,?,?)',(pid,w['id'],settings['price_pence'],json.dumps(terms),time.time()))
-        audit('PayPal payment instructions prepared',w['id'])
-        return jsonify(request=paypal_details(db().execute('SELECT * FROM purchases WHERE id=?',(pid,)).fetchone()))
+        rate('manual-start-'+w['id'],30,3600,per_ip=False);db().execute('BEGIN IMMEDIATE')
+        p=prepare_manual(wedding(),settings,settings['payment_provider'],accepted=True)
+        return jsonify(request=paypal_details(p))
 
+    @app.post('/api/admin/payments/request/<wid>')
+    @auth(admin=True)
+    def request_manual_payment(wid):
+        body=json_body();provider=body.get('provider');send=body.get('send_email',False);settings=config(db())
+        if provider not in ['bank','paypalme'] or type(send) is not bool: raise ValueError('Choose bank transfer or PayPal and whether to email the request.')
+        if send and not smtp_ready(settings): raise ValueError('Configure email first, or untick email delivery to copy the request link yourself.')
+        rate('request-payment-'+wid,20,3600,per_ip=False);db().execute('BEGIN IMMEDIATE')
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
+        if not w: abort(404)
+        if w['suspended']: raise ValueError('Review this suspended account before sending a payment request.')
+        recipients=[r['email'] for r in db().execute('SELECT u.email FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND u.verified=1',(wid,))]
+        if send and not recipients: raise ValueError('The couple needs a verified account email before receiving a payment request.')
+        p=prepare_manual(w,settings,provider);details=paypal_details(p);link=app.config['APP_URL']+'/upgrade';queued=0
+        if send:
+            for email in recipients:
+                message=f'Your Ivory Digital wedding planner payment request is ready.\n\nAmount: £{p["amount"]/100:.2f} GBP\nMethod: {"Bank transfer" if provider=="bank" else "PayPal"}\nReference: {details["reference"]}\n\nSign in to your own planner to read the terms and view payment instructions:\n{link}\n\nIf you have already paid, do not pay again. Access is activated after the payment is checked.'
+                cur=db().execute('INSERT OR IGNORE INTO mail(id,to_address,subject,body,dedupe,created) VALUES(?,?,?,?,?,?)',(secrets.token_hex(12),email,'Your wedding planner payment request',message,'manual-request:'+p['id']+':'+email,time.time()))
+                queued+=cur.rowcount
+            audit('Payment request email queued to verified wedding members',wid)
+        return jsonify(request=details,url=link,queued=queued,email_requested=send)
+
+    @app.post('/api/payments/<pid>/accept')
+    @auth()
+    def accept_manual_payment(pid):
+        w=wedding();body=json_body()
+        if body.get('accept_terms') is not True: raise ValueError('Read and accept the payment terms first.')
+        db().execute('BEGIN IMMEDIATE');p=manual_purchase(pid,w['id'])
+        if p['status'] not in ['pending','reported']: raise ValueError('This payment request is closed. Reload to check your access.')
+        t=json.loads(p['terms'])
+        if not t.get('accepted_at'):
+            t.update(accepted_at=time.time(),checkout_email=g.user['email']);db().execute('UPDATE purchases SET terms=? WHERE id=?',(json.dumps(t),pid))
+        return jsonify(request=paypal_details(manual_purchase(pid,w['id'])))
+
+    @app.post('/api/payments/<pid>/report')
     @app.post('/api/paypal/<pid>/report')
     @auth()
     def paypal_report(pid):
-        w=wedding();body=json_body();reference=body.get('transaction_id','')
-        if not isinstance(reference,str) or not re.fullmatch(r'[A-Za-z0-9-]{5,80}',reference.strip()): raise ValueError('Enter the transaction ID from your PayPal payment receipt.')
-        rate('paypal-report-'+w['id'],12,3600,per_ip=False)
-        db().execute('BEGIN IMMEDIATE')
-        p=db().execute('SELECT * FROM purchases WHERE id=? AND wedding_id=?',(pid,w['id'])).fetchone()
-        if not p or json.loads(p['terms']).get('provider')!='paypalme': abort(404)
+        w=wedding();body=json_body();rate('manual-report-'+w['id'],12,3600,per_ip=False)
+        db().execute('BEGIN IMMEDIATE');p=manual_purchase(pid,w['id']);t=json.loads(p['terms'])
         if p['status']=='paid': return jsonify(ok=True,status='paid')
         if p['status'] not in ['pending','reported']: raise ValueError('This payment request is closed. Contact Ivory Digital before sending any money.')
-        terms=json.loads(p['terms']);terms['reported_transaction']=reference.strip();terms['reported_at']=time.time()
-        db().execute('UPDATE purchases SET status="reported",terms=? WHERE id=?',(json.dumps(terms),pid));audit('Couple reported a PayPal payment; not verified',w['id'])
-        return jsonify(ok=True,status='reported')
+        if not t.get('accepted_at'): raise ValueError('Read and accept this request’s payment terms first.')
+        if t['provider']=='paypalme':
+            reference=body.get('transaction_id','')
+            if not isinstance(reference,str) or not re.fullmatch(r'[A-Za-z0-9-]{5,80}',reference.strip()): raise ValueError('Enter the transaction ID from your PayPal payment receipt.')
+            t['reported_transaction']=reference.strip()
+        else:
+            payer=body.get('payer_name','');paid_date=body.get('payment_date','')
+            if not isinstance(payer,str) or not payer.strip() or len(payer)>100 or '\n' in payer or '\r' in payer or not date_valid(paid_date,False): raise ValueError('Enter the name on the paying account and the date you sent the transfer.')
+            t.update(reported_payer=payer.strip(),reported_date=paid_date)
+        t['reported_at']=time.time();db().execute('UPDATE purchases SET status="reported",terms=? WHERE id=?',(json.dumps(t),pid))
+        audit('Couple reported a manual payment; not verified',w['id']);return jsonify(ok=True,status='reported')
 
+    @app.post('/api/admin/payments/<pid>/confirm')
     @app.post('/api/admin/paypal/<pid>/confirm')
     @auth(admin=True)
     def paypal_confirm(pid):
         body=json_body();transaction=body.get('transaction_id','');amount=body.get('amount_pence')
-        if body.get('verified') is not True: raise ValueError('Check the completed payment in your own PayPal account before confirming it.')
-        if not isinstance(transaction,str) or not re.fullmatch(r'[A-Za-z0-9-]{5,80}',transaction.strip()): raise ValueError('Enter the transaction ID checked in PayPal.')
+        if body.get('verified') is not True: raise ValueError('Check the completed payment in your own PayPal account or bank account before confirming it.')
+        if not isinstance(transaction,str) or not re.fullmatch(r'[A-Za-z0-9 ._/-]{5,100}',transaction.strip()): raise ValueError('Enter the transaction reference checked in your account.')
         transaction=transaction.strip().upper()
         if type(amount) is not int or body.get('currency')!='GBP': raise ValueError('Confirm the gross amount received and GBP currency.')
-        db().execute('BEGIN IMMEDIATE')
-        p=db().execute('SELECT * FROM purchases WHERE id=?',(pid,)).fetchone()
-        if not p or json.loads(p['terms']).get('provider')!='paypalme': abort(404)
-        if amount!=p['amount']: raise ValueError('The received amount must match this request. Check underpayments or overpayments in PayPal first.')
-        receipt=db().execute('SELECT * FROM paypal_receipts WHERE purchase_id=? OR transaction_id=?',(pid,transaction)).fetchone()
+        db().execute('BEGIN IMMEDIATE');p=manual_purchase(pid);t=json.loads(p['terms'])
+        if amount!=p['amount']: raise ValueError('The received amount must match this request. Check any underpayment or overpayment first.')
+        table='bank_receipts' if t['provider']=='bank' else 'paypal_receipts'
+        receipt=db().execute('SELECT * FROM '+table+' WHERE purchase_id=? OR transaction_id=?',(pid,transaction)).fetchone()
         if receipt:
             if p['status']=='paid' and receipt['purchase_id']==pid and receipt['transaction_id']==transaction: return jsonify(ok=True)
             raise ValueError('This transaction or request has already been recorded. No second sale was added.')
         if p['status'] not in ['pending','reported']: raise ValueError('This request cannot be confirmed in its current state.')
-        terms=json.loads(p['terms'])
-        db().execute('INSERT INTO paypal_receipts VALUES(?,?,?,?)',(pid,transaction,g.user['id'],time.time()))
-        db().execute('UPDATE purchases SET status="paid" WHERE id=?',(pid,))
-        db().execute('UPDATE weddings SET access_kind="Paid",access_until=max(access_until,?) WHERE id=?',(terms['access_until'],p['wedding_id']))
-        audit('PayPal payment manually verified; access granted',p['wedding_id']);return jsonify(ok=True)
+        if not t.get('accepted_at'): raise ValueError('The couple must accept the request terms before access is activated.')
+        db().execute('INSERT INTO '+table+' VALUES(?,?,?,?)',(pid,transaction,g.user['id'],time.time()))
+        db().execute('UPDATE purchases SET status="paid" WHERE id=?',(pid,));db().execute('UPDATE weddings SET access_kind="Paid",access_until=max(access_until,?) WHERE id=?',(t['access_until'],p['wedding_id']))
+        audit(('Bank transfer' if t['provider']=='bank' else 'PayPal')+' payment manually verified; access granted',p['wedding_id']);return jsonify(ok=True)
 
+    @app.post('/api/admin/payments/<pid>/close')
     @app.post('/api/admin/paypal/<pid>/close')
     @auth(admin=True)
     def paypal_close_unpaid(pid):
-        if json_body().get('verified') is not True: raise ValueError('Check that no payment is completed or pending in PayPal before closing the request.')
-        db().execute('BEGIN IMMEDIATE');p=db().execute('SELECT * FROM purchases WHERE id=?',(pid,)).fetchone()
-        if not p or json.loads(p['terms']).get('provider')!='paypalme': abort(404)
+        if json_body().get('verified') is not True: raise ValueError('Check that no payment is completed or pending in your account before closing the request.')
+        db().execute('BEGIN IMMEDIATE');p=manual_purchase(pid)
         if p['status']=='cancelled': return jsonify(ok=True)
         if p['status'] not in ['pending','reported']: raise ValueError('A verified payment cannot be closed as unpaid.')
-        db().execute('UPDATE purchases SET status="cancelled" WHERE id=?',(pid,));audit('Unpaid PayPal request closed after administrator check',p['wedding_id'])
-        return jsonify(ok=True)
+        db().execute('UPDATE purchases SET status="cancelled" WHERE id=?',(pid,));audit('Unpaid manual request closed after administrator check',p['wedding_id']);return jsonify(ok=True)
 
+    @app.post('/api/admin/payments/<pid>/refund-record')
     @app.post('/api/admin/paypal/<pid>/refund-record')
     @auth(admin=True)
     def paypal_refund_record(pid):
-        if json_body().get('verified') is not True: raise ValueError('Complete the refund in PayPal first, then confirm it here.')
-        db().execute('BEGIN IMMEDIATE');p=db().execute('SELECT * FROM purchases WHERE id=?',(pid,)).fetchone()
-        if not p or json.loads(p['terms']).get('provider')!='paypalme': abort(404)
+        if json_body().get('verified') is not True: raise ValueError('Complete the refund through the original payment method first, then confirm it here.')
+        db().execute('BEGIN IMMEDIATE');p=manual_purchase(pid)
         if p['status']=='refunded': return jsonify(ok=True)
         if p['status']!='paid': raise ValueError('Only a verified payment can be marked refunded.')
-        db().execute('UPDATE purchases SET status="refunded" WHERE id=?',(pid,));audit('Completed PayPal refund recorded; account access requires review',p['wedding_id'])
+        db().execute('UPDATE purchases SET status="refunded" WHERE id=?',(pid,));audit('Completed manual refund recorded; account access requires review',p['wedding_id'])
         return jsonify(ok=True,message='Refund recorded. Review this couple’s access separately; it was not changed automatically.')
 
     @app.post('/api/checkout')
@@ -776,8 +843,8 @@ def create_app(test_config=None):
         w=wedding();settings=config(db());key=os.getenv('STRIPE_SECRET_KEY')
         if w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat():
             raise ValueError('You already have full access. No new payment is needed.')
-        if settings['payment_provider']!='stripe': raise ValueError('Use the PayPal payment page for this planner.')
-        if paypal_pending(w['id']): raise ValueError('Your earlier PayPal payment request needs checking before a different checkout can be started.')
+        if settings['payment_provider']!='stripe': raise ValueError('Use the manual payment page for this planner.')
+        if paypal_pending(w['id']): raise ValueError('Your earlier manual payment request needs checking before a different checkout can be started.')
         if not settings['checkout_enabled'] or not key: raise ValueError('Checkout is not open. Contact Ivory Digital for access.')
         rate('checkout-'+w['id'],12,3600,per_ip=False)
         db().execute('BEGIN IMMEDIATE')

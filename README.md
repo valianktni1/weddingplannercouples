@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.3
+# Ivory Digital Wedding Planner — v1.0.4
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -236,7 +236,7 @@ curl --fail http://127.0.0.1:30063/healthz
 
 The health response should show v1.0.2. Refresh the admin page to load the new email controls. This planner uses port **30063**; port 30061 belongs to the separate tenant booking system.
 
-## PayPal.Me setup — v1.0.3
+## PayPal.Me setup — v1.0.4
 
 In **Admin → Pricing & trials**, choose **PayPal.Me — I verify payments manually**. The confirmed profile is prefilled as `https://paypal.me/weddingsbymark`; you can edit it. Your existing price, notices and open/closed settings are retained. Set/check the one-time price and refund terms, then enable **Open payments** when ready. Stripe credentials are not required for PayPal.Me. Existing active Stripe installations retain Stripe during migration.
 
@@ -263,3 +263,19 @@ curl --fail http://127.0.0.1:30063/healthz
 ```
 
 The health response should show **1.0.3**. Refresh the admin page after deployment.
+
+## Bank transfer and per-couple requests — v1.0.4
+
+Enter your UK bank name (optional), account holder, six-digit sort code, eight-digit account number and any instructions in **Admin → Pricing & trials → Bank transfer setup**. Leading zeros are retained. These are receiving-account details; the app never needs your banking login. Bank details are not shown on the public landing page or in request emails.
+
+For each registered couple, open **Couples & access → Request payment**, choose **Bank transfer** or **PayPal.Me**, and decide whether to email both verified account holders or copy the sign-in link yourself. The current price/access rules are used for a new request. The global payment method is only the default for self-service upgrades; your selected method for a specific couple takes precedence. Targeted admin requests can be prepared while general public payments remain closed.
+
+Emails contain the amount, chosen method, reference and a link to sign in. Delivery is queued through your configured SMTP service and shown in Email & reminders. Repeated creation of the same outstanding request does not duplicate queued emails. The couple signs in, accepts the stored request terms and sees only their own instructions. For bank transfers they can copy the bank details/reference and report the paying account name and date. Reports never activate access.
+
+Check cleared funds in your own bank account, then use **Pricing & trials → Bank & PayPal payments → Verify payment & activate access**. Enter the bank transaction reference, exact GBP amount and verification confirmation. Both partners then gain access. PayPal verification remains available through the same panel. Bank receipts and PayPal receipts have separate unique transaction records.
+
+Existing requests keep the original amount, method, bank details or PayPal profile, access date and terms. To change a pending request's method or receiving account, first check that no payment is completed or pending, close it as genuinely unpaid, then prepare a new request. Never silently replace instructions for an outstanding payment. Refund recording is available for both methods after the actual refund has been completed outside the app; account access still requires a separate review.
+
+No existing bank details, pricing, policies, accounts or PayPal payments are replaced by this update. Existing requests and endpoints remain compatible. Add the bank payment reporting information (payer name, transfer date and verified references) to your privacy notice as applicable.
+
+Update using the backup/pull/single-image build/recreate commands above. The health endpoint should show **1.0.4**. The planner remains on **30063**. Refresh admin after updating.

@@ -1,3 +1,7 @@
+# v1.0.4 — bank transfer and per-couple payment requests
+
+Add UK receiving-bank settings with text validation that preserves leading zeros. Admin can choose bank transfer or PayPal.Me separately for each couple before queuing a request email or copying the sign-in link. Requests freeze their method, recipient details, price and terms. Emails omit bank details, reach verified account holders only and are deduplicated. The couple accepts terms before seeing payment instructions and can report a transfer without gaining access. Admin verifies cleared funds before activation. Existing PayPal/Stripe functionality and data are retained. Port remains 30063.
+
 # v1.0.3 — PayPal.Me with manual verification
 
 Add the confirmed weddingsbymark PayPal.Me profile as an editable admin setting. Couples accept payment terms, get a GBP payment link and unique reference, then may report their transaction ID. Reports do not grant access. Admin verifies the actual transaction and gross GBP amount before activating both partners’ access. Receipt uniqueness and idempotent confirmation prevent duplicate sales. Existing requests preserve original commercial terms. Refund recording requires a refund already completed in PayPal and leaves access changes to a separate review.

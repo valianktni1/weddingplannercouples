@@ -1,3 +1,12 @@
+Ivory Wedding Planner v1.0.4 — bank/request update, 15 October 2026
+
+85 backend tests passed, including 16 new bank/request cases. Tests cover per-couple method overrides, frozen bank details, leading zeros, validation rollback, sign-in/membership privacy, email readiness/verified recipients/deduplication, terms acceptance, duplicate bank references, closed public checkout, method switching only after closing unpaid requests and manual activation. Prior PayPal, SMTP and planner regressions remain passing.
+5 JavaScript merge scenarios passed; Python compilation and all script syntax checks passed.
+Chromium bank journey passed: setup, per-couple bank method despite a PayPal default, request email queued, prevention of conflicting instructions, terms acceptance, bank details/report, cleared-payment verification, account access refresh. Widths 320/390/736/1024 in light/dark had no horizontal overflow or JavaScript errors. Mobile rendering inspected.
+No real bank transfer, PayPal payment, refund or external email was sent. Real bank details and live receipt/delivery remain merchant installation checks.
+
+Earlier verification (historical):
+
 Ivory Wedding Planner v1.0.3 — PayPal.Me update, 15 October 2026
 
 69 backend tests passed, including 21 PayPal cases covering ownership, CSRF, terms acceptance, URL validation, reporting without access, verified amount/currency, transaction reuse, repeated confirmation, frozen request terms, complimentary access, refunds and provider-switch protection.
