@@ -1,0 +1,675 @@
+import base64
+import io
+import json
+import os
+import re
+import secrets
+import shutil
+import time
+import urllib.parse
+import urllib.request
+import hashlib
+import hmac
+from datetime import date, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from pathlib import Path
+from functools import wraps
+from flask import Flask, g, request, render_template, redirect, jsonify, make_response, send_file, abort
+from werkzeug.security import generate_password_hash, check_password_hash
+from PIL import Image, ImageOps, UnidentifiedImageError
+from .core import connect, initialise, config, digest, cipher, valid_totp, empty_state, validate_state, access_end, date_valid
+
+VERSION='1.0.1'
+def create_app(test_config=None):
+    app=Flask(__name__)
+    app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
+        APP_URL=os.environ.get('APP_URL','https://planner.ivorydigital.uk').rstrip('/'),
+        SECURE_COOKIES=os.environ.get('SECURE_COOKIES','1')=='1', TESTING=False,
+        MAX_CONTENT_LENGTH=12*1024*1024, MAX_FORM_PARTS=30, MAX_FORM_MEMORY_SIZE=200000)
+    if test_config: app.config.update(test_config)
+    secret=initialise(app.config['DATA_DIR'])
+    app.config['SECRET_VALUE']=secret
+    app.config['DATABASE']=str(Path(app.config['DATA_DIR'])/'planner.sqlite3')
+
+    def db():
+        if 'db' not in g: g.db=connect(app.config['DATABASE'])
+        return g.db
+    def audit(action,wid=None):
+        db().execute('INSERT INTO audit(actor,action,wedding_id,created) VALUES(?,?,?,?)',
+            (g.user['id'] if getattr(g,'user',None) else 'system',action,wid,time.time()))
+    def token(kind,user=None,wedding=None,email=None,payload=None,hours=24):
+        value=secrets.token_urlsafe(32)
+        db().execute('INSERT INTO tokens VALUES(?,?,?,?,?,?,?,0)',(digest(value),kind,user,wedding,email,json.dumps(payload or {}),time.time()+hours*3600))
+        return value
+    def token_row(value,kind):
+        return db().execute('SELECT * FROM tokens WHERE hash=? AND kind=? AND used=0 AND expires>?',(digest(value),kind,time.time())).fetchone()
+    def queue(to,subject,body,dedupe=None):
+        db().execute('INSERT OR IGNORE INTO mail(id,to_address,subject,body,dedupe,created) VALUES(?,?,?,?,?,?)',
+            (secrets.token_hex(12),to,subject,body,dedupe,time.time()))
+    def rotated(user=None,pending=None):
+        db().execute('DELETE FROM sessions WHERE id=?',(g.session['id'],))
+        g.session=new_session(user,pending)
+    def new_session(user=None,pending=None):
+        raw=secrets.token_urlsafe(32);sid=digest(raw)
+        row={'id':sid,'user_id':user,'csrf':secrets.token_urlsafe(32),'expires':time.time()+86400*7,'pending':pending,'setup_secret':None}
+        db().execute('INSERT INTO sessions VALUES(?,?,?,?,?,?)',tuple(row.values()))
+        g.cookie=raw
+        return row
+    def rate(name,limit=20,seconds=900,per_ip=True):
+        # The untrusted X-Forwarded-For header is deliberately not used.
+        key=digest(name+'|'+((request.remote_addr or 'unknown') if per_ip else 'account'))
+        now=time.time();row=db().execute('SELECT * FROM rate_limits WHERE key=?',(key,)).fetchone()
+        if not row or row['reset']<now:
+            db().execute('INSERT OR REPLACE INTO rate_limits VALUES(?,?,?)',(key,1,now+seconds))
+        elif row['count']>=limit:
+            abort(429,description='Too many attempts. Please try again later.')
+        else: db().execute('UPDATE rate_limits SET count=count+1 WHERE key=?',(key,))
+        # Rate limits survive a rejected form; business edits must not.
+        db().commit()
+    def auth(admin=False,verified=True):
+        def decorator(fn):
+            @wraps(fn)
+            def wrapped(*args,**kwargs):
+                if not g.user:
+                    if request.path.startswith('/api/'): abort(401)
+                    return redirect('/ivoryadmin/login' if admin else '/login')
+                if admin and g.user['role']!='admin': abort(403)
+                if not admin and g.user['role']!='couple': abort(403)
+                if verified and not g.user['verified']: abort(403,description='Please verify your email first.')
+                if admin and not g.user['totp']: return redirect('/ivoryadmin/two-step/setup')
+                return fn(*args,**kwargs)
+            return wrapped
+        return decorator
+    def wedding(write=False):
+        row=db().execute('SELECT w.* FROM weddings w JOIN members m ON m.wedding_id=w.id WHERE m.user_id=?',(g.user['id'],)).fetchone()
+        if not row: abort(404)
+        if row['suspended']: abort(403,description='This account is suspended. Contact Ivory Digital.')
+        if write and row['access_until']<date.today().isoformat():
+            abort(403,description='Planning access has ended. You can still view and export your plan. Contact Ivory Digital for an extension.')
+        return row
+    def json_body():
+        if not request.is_json: abort(415)
+        value=request.get_json()
+        if not isinstance(value,dict): abort(400)
+        return value
+    def valid_email(email):
+        return isinstance(email,str) and len(email)<=160 and re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email)
+    def password_ok(p): return isinstance(p,str) and 12<=len(p)<=200
+    def update_state(w,s,expected):
+        validate_state(s)
+        cur=db().execute('UPDATE weddings SET state=?,revision=revision+1 WHERE id=? AND revision=?',
+            (json.dumps(s),w['id'],expected))
+        if not cur.rowcount: abort(409,description='Your partner or an RSVP changed the plan. Reload before saving so nobody’s changes are lost.')
+
+    @app.before_request
+    def before():
+        g.cookie=None;g.user=None
+        if request.path.startswith('/static/') or request.path=='/healthz': return
+        raw=request.cookies.get('ivory_session','');row=db().execute('SELECT * FROM sessions WHERE id=? AND expires>?',(digest(raw),time.time())).fetchone() if raw else None
+        g.session=dict(row) if row else new_session()
+        if g.session['user_id']:
+            g.user=db().execute('SELECT * FROM users WHERE id=?',(g.session['user_id'],)).fetchone()
+        db().commit()
+        if request.method in ('POST','PUT','PATCH','DELETE') and request.path!='/api/stripe/webhook':
+            value=request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
+            if not hmac.compare_digest(str(value),g.session['csrf']): abort(403,description='This form expired. Reload and try again.')
+    @app.after_request
+    def after(resp):
+        resp.headers['X-Content-Type-Options']='nosniff'
+        resp.headers['X-Frame-Options']='DENY'
+        resp.headers['Referrer-Policy']='no-referrer'
+        resp.headers['Permissions-Policy']='camera=(), microphone=(), geolocation=()'
+        resp.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        resp.headers['X-Robots-Tag']='noindex, nofollow'
+        if not request.path.startswith('/static/'): resp.headers['Cache-Control']='no-store'
+        if getattr(g,'cookie',None):
+            resp.set_cookie('ivory_session',g.cookie,max_age=86400*7,httponly=True,secure=app.config['SECURE_COOKIES'],samesite='Lax')
+        if 'db' in g:
+            if resp.status_code>=400: g.db.rollback()
+            else:
+                g.db.commit()
+                for callback in getattr(g,'on_commit',[]): callback()
+        return resp
+    @app.teardown_appcontext
+    def close(exc):
+        if 'db' in g:
+            if exc: g.db.rollback()
+            g.db.close()
+    @app.context_processor
+    def ctx(): return {'csrf':getattr(g,'session',{}).get('csrf',''),'version':VERSION,'user':getattr(g,'user',None)}
+    @app.errorhandler(ValueError)
+    def invalid(e):
+        if request.path.startswith('/api/'): return jsonify(error=str(e)),400
+        return render_template('message.html',title='Check those details',message=str(e)),400
+    @app.errorhandler(400)
+    @app.errorhandler(401)
+    @app.errorhandler(403)
+    @app.errorhandler(404)
+    @app.errorhandler(409)
+    @app.errorhandler(413)
+    @app.errorhandler(415)
+    @app.errorhandler(429)
+    def problem(e):
+        if request.path.startswith('/api/'): return jsonify(error=e.description),e.code
+        return render_template('message.html',title='Please check',message=e.description),e.code
+
+    @app.get('/healthz')
+    def health():
+        d=connect(app.config['DATABASE']);d.execute('SELECT 1').fetchone();d.close()
+        return jsonify(status='ok',version=VERSION)
+    @app.get('/robots.txt')
+    def robots(): return 'User-agent: *\nDisallow: /\n',200,{'Content-Type':'text/plain'}
+    @app.get('/')
+    def index(): return render_template('landing.html',settings=config(db()))
+    @app.route('/signup',methods=['GET','POST'])
+    def signup():
+        settings=config(db())
+        if not settings['signups_enabled']:
+            return render_template('message.html',title='Opening soon',message='Ivory Digital is setting up the planner. Please come back soon.'),403
+        if request.method=='GET': return render_template('auth.html',mode='signup',title='Create your planner')
+        rate('signup',100,3600)
+        email=request.form.get('email','').lower().strip();password=request.form.get('password','')
+        if not valid_email(email) or not password_ok(password): raise ValueError('Use a valid email and a password of at least 12 characters.')
+        if db().execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone():
+            return render_template('message.html',title='Check your email',message='If you already have an account, use sign-in or account recovery.')
+        uid=secrets.token_hex(16);wid=secrets.token_hex(16)
+        db().execute('INSERT INTO users(id,email,password,created) VALUES(?,?,?,?)',(uid,email,generate_password_hash(password),time.time()))
+        end=(date.today()+timedelta(days=settings['trial_days'])).isoformat()
+        s=empty_state();s['email']=email
+        db().execute('INSERT INTO weddings(id,state,access_until,created) VALUES(?,?,?,?)',(wid,json.dumps(s),end,time.time()))
+        db().execute('INSERT INTO members VALUES(?,?)',(wid,uid))
+        value=token('verify',user=uid)
+        queue(email,'Verify your wedding planner email',app.config['APP_URL']+'/verify/'+value)
+        audit('Couple account registered',wid)
+        return render_template('message.html',title='Check your email',message='Open the verification link to finish setting up your account. If it does not arrive, ask Ivory Digital to check email delivery.')
+    @app.route('/verify/<value>',methods=['GET','POST'])
+    def verify(value):
+        row=token_row(value,'verify')
+        if not row: abort(400,description='This verification link has expired or was used.')
+        if request.method=='GET': return render_template('confirm.html',title='Verify your email',message='Confirm to activate your account.',button='Verify email')
+        consumed=db().execute('UPDATE tokens SET used=1 WHERE hash=? AND used=0 AND expires>?',(row['hash'],time.time()))
+        if not consumed.rowcount: abort(400,description='This verification link was already used.')
+        was_verified=db().execute('SELECT verified FROM users WHERE id=?',(row['user_id'],)).fetchone()['verified']
+        db().execute('UPDATE users SET verified=1 WHERE id=?',(row['user_id'],))
+        if not was_verified:
+            until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
+            db().execute('UPDATE weddings SET access_until=max(access_until,?) WHERE access_kind="Trial" AND id IN (SELECT wedding_id FROM members WHERE user_id=?)',(until,row['user_id']))
+        return redirect('/login')
+    @app.route('/verification',methods=['GET','POST'])
+    def resend_verification():
+        if request.method=='GET': return render_template('auth.html',mode='recover',title='Request a new verification link')
+        rate('verify-resend',6,3600);email=request.form.get('email','').lower().strip()
+        user=db().execute('SELECT * FROM users WHERE email=? AND role="couple" AND verified=0',(email,)).fetchone()
+        if user:
+            db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind="verify"',(user['id'],))
+            value=token('verify',user=user['id']);queue(email,'Verify your wedding planner email',app.config['APP_URL']+'/verify/'+value)
+        return render_template('message.html',title='Check your inbox',message='If this email has an unverified account, a new verification link will arrive shortly.')
+    @app.route('/login',methods=['GET','POST'])
+    @app.route('/ivoryadmin/login',methods=['GET','POST'])
+    def login():
+        admin=request.path.startswith('/ivoryadmin')
+        if request.method=='GET': return render_template('auth.html',mode='login',title='Ivory admin sign-in' if admin else 'Welcome back')
+        email=request.form.get('email','').lower().strip();rate('login-ip',300);rate('login-'+email,8,per_ip=False)
+        user=db().execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
+        if not user or not check_password_hash(user['password'],request.form.get('password','')) or (user['role']=='admin')!=admin:
+            return render_template('auth.html',mode='login',title='Sign in',error='Email or password not recognised.'),401
+        if not user['verified']: raise ValueError('Verify your email first.')
+        if admin:
+            rotated(pending=user['id'])
+            return redirect('/ivoryadmin/two-step' if user['totp'] else '/ivoryadmin/two-step/setup')
+        rotated(user=user['id']);return redirect('/app')
+    @app.post('/logout')
+    def logout(): rotated();return redirect('/')
+    @app.route('/recover',methods=['GET','POST'])
+    def recover():
+        if request.method=='GET': return render_template('auth.html',mode='recover',title='Get back into your account')
+        rate('recover',8,3600);email=request.form.get('email','').lower().strip();u=db().execute('SELECT * FROM users WHERE email=?',(email,)).fetchone()
+        if u:
+            value=token('reset',user=u['id'],hours=1)
+            queue(email,'Reset your planner password',app.config['APP_URL']+'/reset/'+value)
+        return render_template('message.html',title='Check your inbox',message='If this email has an account, a recovery link will arrive shortly.')
+    @app.route('/reset/<value>',methods=['GET','POST'])
+    def reset(value):
+        row=token_row(value,'reset')
+        if not row: abort(400,description='This recovery link expired or was used.')
+        if request.method=='GET': return render_template('auth.html',mode='reset',title='Choose a new password')
+        password=request.form.get('password','')
+        if not password_ok(password): raise ValueError('Use at least 12 characters.')
+        consumed=db().execute('UPDATE tokens SET used=1 WHERE hash=? AND used=0 AND expires>?',(row['hash'],time.time()))
+        if not consumed.rowcount: abort(400,description='This recovery link was already used.')
+        db().execute('UPDATE users SET password=? WHERE id=?',(generate_password_hash(password),row['user_id']))
+        db().execute('DELETE FROM sessions WHERE user_id=? OR pending=?',(row['user_id'],row['user_id']))
+        db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind="reset"',(row['user_id'],))
+        return redirect('/login')
+
+    @app.route('/ivoryadmin/two-step/setup',methods=['GET','POST'])
+    def setup_totp():
+        uid=g.session['pending'] or (g.user['id'] if g.user and g.user['role']=='admin' else None)
+        u=db().execute('SELECT * FROM users WHERE id=? AND role="admin"',(uid,)).fetchone() if uid else None
+        if not u or u['totp']: abort(403)
+        setup=g.session['setup_secret']
+        if not setup:
+            setup=cipher(secret).encrypt(base64.b32encode(secrets.token_bytes(20)).decode().rstrip('=').encode()).decode()
+            db().execute('UPDATE sessions SET setup_secret=? WHERE id=?',(setup,g.session['id']))
+        plain=cipher(secret).decrypt(setup.encode()).decode()
+        if request.method=='POST':
+            rate('totp-setup',8)
+            db().execute('BEGIN IMMEDIATE')
+            if db().execute('SELECT totp FROM users WHERE id=?',(uid,)).fetchone()['totp']:
+                abort(403,description='Two-step verification was already enrolled.')
+            counter=valid_totp(plain,request.form.get('code',''))
+            if counter is None: raise ValueError('The authenticator code did not match. Check your phone time.')
+            codes=[secrets.token_hex(5) for _ in range(8)]
+            db().execute('UPDATE users SET totp=?,recovery=?,totp_last=? WHERE id=?',(setup,json.dumps([digest(c) for c in codes]),counter,uid))
+            rotated(user=uid);audit('Admin two-step sign-in enrolled')
+            return render_template('recovery_codes.html',codes=codes)
+        uri='otpauth://totp/'+urllib.parse.quote('Ivory Planner:'+u['email'])+'?'+urllib.parse.urlencode({'secret':plain,'issuer':'Ivory Planner'})
+        import qrcode
+        import qrcode.image.svg
+        image=qrcode.make(uri,image_factory=qrcode.image.svg.SvgPathImage);buf=io.BytesIO();image.save(buf)
+        return render_template('two_step.html',setup=True,secret=plain,qr=base64.b64encode(buf.getvalue()).decode())
+    @app.route('/ivoryadmin/two-step',methods=['GET','POST'])
+    def two_step():
+        u=db().execute('SELECT * FROM users WHERE id=? AND role="admin"',(g.session['pending'],)).fetchone()
+        if not u or not u['totp']: abort(403)
+        if request.method=='GET': return render_template('two_step.html',setup=False)
+        rate('totp-'+u['id'],8,per_ip=False);code=request.form.get('code','').strip()
+        db().execute('BEGIN IMMEDIATE')
+        u=db().execute('SELECT * FROM users WHERE id=?',(u['id'],)).fetchone()
+        plain=cipher(secret).decrypt(u['totp'].encode()).decode();counter=valid_totp(plain,code,u['totp_last']);recovery=json.loads(u['recovery'])
+        if counter is not None:
+            db().execute('UPDATE users SET totp_last=? WHERE id=?',(counter,u['id']))
+        elif digest(code) in recovery:
+            recovery.remove(digest(code));db().execute('UPDATE users SET recovery=? WHERE id=?',(json.dumps(recovery),u['id']))
+        else: raise ValueError('Code not recognised. Use a new authenticator code or an unused recovery code.')
+        rotated(user=u['id']);return redirect('/ivoryadmin')
+    @app.get('/app')
+    @auth()
+    def planner():
+        w=wedding();return render_template('planner.html',readonly=w['access_until']<date.today().isoformat(),access_until=w['access_until'])
+    @app.get('/api/state')
+    @auth()
+    def get_state():
+        w=wedding();return jsonify(state=json.loads(w['state']),revision=w['revision'],account_email=g.user['email'],access_until=w['access_until'],readonly=w['access_until']<date.today().isoformat())
+    @app.put('/api/state')
+    @auth()
+    def put_state():
+        w=wedding(True);body=json_body();s=body.get('state')
+        if not isinstance(s,dict): raise ValueError('Missing wedding data.')
+        s['email']=g.user['email'];s['demo']=False
+        s['invite']=json.loads(w['state'])['invite']
+        update_state(w,s,body.get('revision'))
+        return jsonify(revision=w['revision']+1,state=s)
+    @app.get('/api/export')
+    @auth()
+    def export():
+        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),exported=time.time())
+    @app.get('/website')
+    @auth()
+    def website_editor(): wedding();return render_template('website_editor.html')
+    @app.get('/files')
+    @auth()
+    def files_page(): wedding();return render_template('files.html')
+    @app.get('/api/billing')
+    @auth()
+    def billing_info():
+        w=wedding();settings=config(db())
+        return jsonify(enabled=settings['checkout_enabled'],already_active=w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat(),price_pence=settings['price_pence'],
+            access_until=access_end(settings,json.loads(w['state'])['date']),refund_terms=settings['refund_terms'])
+    @app.post('/api/partner/invite')
+    @auth()
+    def invite_partner():
+        w=wedding(True);rate('partner',10,3600);email=json_body().get('email','').lower().strip()
+        if not valid_email(email) or email==g.user['email']: raise ValueError('Enter your partner’s separate email address.')
+        if db().execute('SELECT count(*) n FROM members WHERE wedding_id=?',(w['id'],)).fetchone()['n']>=2: raise ValueError('Both partner places are already in use.')
+        db().execute('UPDATE tokens SET used=1 WHERE wedding_id=? AND kind="partner"',(w['id'],))
+        value=token('partner',wedding=w['id'],email=email,hours=72)
+        queue(email,'Join your shared wedding planner',app.config['APP_URL']+'/join/'+value)
+        s=json.loads(w['state']);s['invite']={'email':email,'status':'Invitation queued'};update_state(w,s,w['revision']);audit('Partner invited',w['id'])
+        return jsonify(ok=True)
+    @app.post('/api/partner/cancel')
+    @auth()
+    def cancel_partner():
+        w=wedding(True)
+        if db().execute('SELECT count(*) n FROM members WHERE wedding_id=?',(w['id'],)).fetchone()['n']>=2:
+            raise ValueError('Your partner has already joined. Cancelling a pending invitation cannot remove their account.')
+        db().execute('UPDATE tokens SET used=1 WHERE wedding_id=? AND kind="partner"',(w['id'],))
+        s=json.loads(w['state']);s['invite']={'email':'','status':'Not invited'};update_state(w,s,w['revision']);return jsonify(ok=True)
+    @app.route('/join/<value>',methods=['GET','POST'])
+    def join(value):
+        t=token_row(value,'partner')
+        if not t: abort(400,description='This invitation has expired or been cancelled.')
+        if request.method=='GET': return render_template('auth.html',mode='join',title='Join your wedding planner',email=t['email'])
+        rate('join',30);db().execute('BEGIN IMMEDIATE');t=token_row(value,'partner')
+        if not t: abort(400,description='This invitation has expired or been cancelled.')
+        target=db().execute('SELECT * FROM weddings WHERE id=?',(t['wedding_id'],)).fetchone()
+        if not target or target['suspended']: abort(403)
+        if db().execute('SELECT count(*) n FROM members WHERE wedding_id=?',(t['wedding_id'],)).fetchone()['n']>=2: raise ValueError('Both partner places are already used.')
+        u=db().execute('SELECT * FROM users WHERE email=?',(t['email'],)).fetchone()
+        password=request.form.get('password','')
+        if u:
+            if not check_password_hash(u['password'],password) or u['role']!='couple': abort(403)
+            previous=db().execute('SELECT w.* FROM weddings w JOIN members m ON m.wedding_id=w.id WHERE m.user_id=?',(u['id'],)).fetchone()
+            if previous:
+                old=json.loads(previous['state'])
+                if previous['id']==target['id'] or old['ready'] or any(old['names']) or old['date'] or old['budget'] is not None or old['priorities'] or old['day']!=empty_state()['day'] or any(old[key] for key in ['suppliers','payments','tasks','guests','groups','events','notes']) or previous['slug'] or db().execute('SELECT 1 FROM uploads WHERE wedding_id=?',(previous['id'],)).fetchone() or db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(previous['id'],)).fetchone():
+                    raise ValueError('This account already has wedding plans. No plans were removed. Sign in to review them and contact Ivory Digital before combining accounts.')
+                db().execute('DELETE FROM members WHERE user_id=?',(u['id'],))
+                if not db().execute('SELECT 1 FROM members WHERE wedding_id=?',(previous['id'],)).fetchone():
+                    db().execute('DELETE FROM weddings WHERE id=?',(previous['id'],))
+            uid=u['id'];db().execute('UPDATE users SET verified=1 WHERE id=?',(uid,))
+        else:
+            if not password_ok(password): raise ValueError('Use a password of at least 12 characters.')
+            uid=secrets.token_hex(16);db().execute('INSERT INTO users(id,email,password,verified,created) VALUES(?,?,?,1,?)',(uid,t['email'],generate_password_hash(password),time.time()))
+        db().execute('BEGIN IMMEDIATE') if not db().in_transaction else None
+        if db().execute('SELECT count(*) n FROM members WHERE wedding_id=?',(t['wedding_id'],)).fetchone()['n']>=2: raise ValueError('Both partner places are already used.')
+        db().execute('INSERT INTO members VALUES(?,?)',(t['wedding_id'],uid));db().execute('UPDATE tokens SET used=1 WHERE hash=?',(t['hash'],))
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(t['wedding_id'],)).fetchone();s=json.loads(w['state']);s['invite']={'email':t['email'],'status':'Accepted'}
+        update_state(w,s,w['revision']);rotated(user=uid);audit('Partner joined',w['id']);return redirect('/app')
+
+    @app.get('/api/website')
+    @auth()
+    def get_website():
+        w=wedding();site=json.loads(w['site']);return jsonify(site=site,slug=w['slug'],has_code=bool(w['code_hash']),revision=w['site_revision'])
+    @app.put('/api/website')
+    @auth()
+    def put_website():
+        w=wedding(True);body=json_body();site=body.get('site',{});slug=body.get('slug','').strip().lower()
+        if type(body.get('revision')) is not int or body['revision']!=w['site_revision']:
+            abort(409,description='Your partner changed the website. Your typed changes are still here; copy them before reloading.')
+        if not isinstance(site,dict) or len(json.dumps(site))>30000: raise ValueError('Website details are too large.')
+        allowed={'published','title','intro','date','ceremony','reception','travel','accommodation','dress','faq','gift_url','cover','theme'}
+        site={k:site.get(k,'') for k in allowed}
+        if type(site['published']) is not bool: raise ValueError('Choose draft or published.')
+        if site['published'] and not str(site.get('title','')).strip(): raise ValueError('Add your names or a page title before publishing.')
+        if not re.fullmatch(r'[a-z0-9][a-z0-9-]{2,70}',slug): raise ValueError('Use a unique address with 3–71 lowercase letters, numbers or hyphens.')
+        if not date_valid(site['date']): raise ValueError('Check the website date.')
+        for k,v in site.items():
+            if k!='published' and (not isinstance(v,str) or len(v)>5000): raise ValueError('Website text is too long.')
+        if site['gift_url'] and not site['gift_url'].startswith('https://'): raise ValueError('Gift links must start with https://.')
+        if site['cover'] and not db().execute('SELECT 1 FROM uploads WHERE id=? AND wedding_id=? AND kind="cover"',(site['cover'],w['id'])).fetchone(): raise ValueError('Select a cover uploaded to your wedding.')
+        if site['theme'] not in ['garden','classic','modern']: site['theme']='garden'
+        existing=db().execute('SELECT wedding_id FROM website_slugs WHERE slug=? AND wedding_id!=?',(slug,w['id'])).fetchone()
+        if existing: raise ValueError('That wedding address is already taken.')
+        code=body.get('access_code')
+        if code is not None and (not isinstance(code,str) or len(code)>100): raise ValueError('Invalid website access code.')
+        code_hash=w['code_hash'] if code is None else generate_password_hash(code) if code else None
+        if code is not None:
+            db().execute('UPDATE tokens SET used=1 WHERE wedding_id=? AND kind="site-access"',(w['id'],))
+        cur=db().execute('UPDATE weddings SET site=?,slug=?,code_hash=?,site_revision=site_revision+1 WHERE id=? AND site_revision=?',(json.dumps(site),slug,code_hash,w['id'],body['revision']))
+        if not cur.rowcount: abort(409,description='The website changed while saving. Reload before overwriting anything.')
+        db().execute('INSERT OR IGNORE INTO website_slugs VALUES(?,?)',(slug,w['id']))
+        audit('Wedding website saved'+(' and published' if site['published'] else ' as draft'),w['id']);return jsonify(ok=True,url=app.config['APP_URL']+'/weddings/'+slug,revision=w['site_revision']+1,has_code=bool(code_hash))
+    def public_wedding(slug):
+        w=db().execute('SELECT w.* FROM weddings w JOIN website_slugs a ON a.wedding_id=w.id WHERE a.slug=?',(slug,)).fetchone()
+        if not w or w['suspended'] or w['access_until']<date.today().isoformat() or not json.loads(w['site']).get('published'): abort(404)
+        return w
+    @app.get('/website/preview')
+    @auth()
+    def preview_website():
+        w=wedding();site=json.loads(w['site'])
+        return render_template('wedding.html',site=site,slug=w['slug'],invitation=None,guests=[],preview=True,preview_cover=site.get('cover'))
+    def site_unlocked(w):
+        if not w['code_hash']: return True
+        value=request.cookies.get('site_'+w['id'],'')
+        return bool(token_row(value,'site-access') and token_row(value,'site-access')['wedding_id']==w['id'])
+    @app.route('/weddings/<slug>',methods=['GET','POST'])
+    def site(slug):
+        w=public_wedding(slug)
+        if not site_unlocked(w):
+            if request.method=='POST':
+                rate('site-code-'+w['id'],12)
+                if check_password_hash(w['code_hash'],request.form.get('code','')):
+                    value=token('site-access',wedding=w['id'],hours=24)
+                    resp=redirect('/weddings/'+slug);resp.set_cookie('site_'+w['id'],value,max_age=86400,httponly=True,samesite='Lax',secure=app.config['SECURE_COOKIES']);return resp
+                raise ValueError('That access code did not match.')
+            return render_template('site_code.html')
+        return render_template('wedding.html',site=json.loads(w['site']),slug=slug,invitation=None,guests=[])
+    @app.post('/api/invitations')
+    @auth()
+    def invitations():
+        w=wedding(True);body=json_body();ids=body.get('guest_ids',[]);s=json.loads(w['state']);guests={x['id']:x for x in s['guests']}
+        if not ids or len(ids)>30 or len(set(ids))!=len(ids) or any(i not in guests for i in ids): raise ValueError('Select the individual guests on this invitation.')
+        if not w['slug'] or not json.loads(w['site']).get('published'): raise ValueError('Publish your wedding website first.')
+        invite=token('rsvp',wedding=w['id'],payload={'guest_ids':ids},hours=24*365*4)
+        link=app.config['APP_URL']+'/weddings/'+w['slug']+'/invite/'+invite
+        email=body.get('email','').strip().lower()
+        if email:
+            if not valid_email(email): raise ValueError('Check the invitation email.')
+            queue(email,'Your wedding invitation',link)
+        audit('Guest invitation created',w['id']);return jsonify(url=link,queued=bool(email))
+    @app.get('/api/invitations')
+    @auth()
+    def invitation_list():
+        w=wedding();state=json.loads(w['state']);names={x['id']:x['name'] for x in state['guests']};rows=[]
+        for t in db().execute('SELECT * FROM tokens WHERE kind="rsvp" AND wedding_id=? ORDER BY expires DESC',(w['id'],)):
+            rows.append({'id':t['hash'],'names':[names.get(i,'Guest removed') for i in json.loads(t['payload'])['guest_ids']], 'active':not t['used'] and t['expires']>time.time(),'expires':t['expires']})
+        return jsonify(invitations=rows)
+    @app.post('/api/invitations/<tid>/revoke')
+    @auth()
+    def revoke_invitation(tid):
+        w=wedding(True);cur=db().execute('UPDATE tokens SET used=1 WHERE hash=? AND wedding_id=? AND kind="rsvp"',(tid,w['id']))
+        if not cur.rowcount: abort(404)
+        audit('Guest invitation revoked',w['id']);return jsonify(ok=True)
+    @app.route('/weddings/<slug>/invite/<value>',methods=['GET','POST'])
+    def rsvp(slug,value):
+        w=public_wedding(slug);t=token_row(value,'rsvp')
+        if not t or t['wedding_id']!=w['id']: abort(404)
+        ids=json.loads(t['payload'])['guest_ids'];s=json.loads(w['state']);guests=[x for x in s['guests'] if x['id'] in ids]
+        if not guests: abort(404)
+        if request.method=='POST':
+            rate('rsvp-'+t['hash'],30)
+            errors=[]
+            for guest in guests:
+                prefix=guest['id']+'-';answer=request.form.get(prefix+'rsvp','')
+                if answer not in ['Accepted','Declined']: errors.append('Please reply for each person.');answer='Waiting'
+                guest['rsvp']=answer
+                for key in ['meal','diet','access']:
+                    v=request.form.get(prefix+key,'').strip()
+                    if len(v)>160: errors.append('Please keep each answer to 160 characters.');v=v[:160]
+                    guest[key]=v
+            if errors:
+                return render_template('wedding.html',site=json.loads(w['site']),slug=slug,invitation=value,guests=guests,error=errors[0]),400
+            update_state(w,s,w['revision']);audit('Guest RSVP submitted',w['id'])
+            return render_template('message.html',title='Thank you!',message='Your reply has been saved for the couple. You can use your invitation link to update it.')
+        return render_template('wedding.html',site=json.loads(w['site']),slug=slug,invitation=value,guests=guests)
+
+    def attachment_path(f):
+        return Path(app.config['DATA_DIR'])/'files'/f['wedding_id']/Path(f['path']).name
+
+    @app.get('/api/files')
+    @auth()
+    def list_files():
+        w=wedding();return jsonify(files=[dict(r) for r in db().execute('SELECT id,name,mime,size,kind FROM uploads WHERE wedding_id=?',(w['id'],))])
+    @app.post('/api/files')
+    @auth()
+    def upload_file():
+        w=wedding(True);rate('uploads',60,3600);f=request.files.get('file');kind=request.form.get('kind','document')
+        if not f or kind not in ['document','cover']: raise ValueError('Choose a PDF document or a cover photograph.')
+        current=db().execute('SELECT coalesce(sum(size),0) n FROM uploads WHERE wedding_id=?',(w['id'],)).fetchone()['n']
+        raw=f.read(10*1024*1024+1)
+        if not raw or len(raw)>10*1024*1024 or current+len(raw)>250*1024*1024: raise ValueError('Maximum 10 MB per file and 250 MB per wedding.')
+        name=Path(f.filename or 'document').name[:150]
+        if kind=='cover':
+            try:
+                image=Image.open(io.BytesIO(raw))
+                if image.width*image.height>20000000: raise ValueError('Cover photograph exceeds 20 megapixels. Resize it before uploading.')
+                image.verify();image=Image.open(io.BytesIO(raw));image=ImageOps.exif_transpose(image);image.thumbnail((2400,2400));out=io.BytesIO();image.convert('RGB').save(out,'JPEG',quality=88);raw=out.getvalue()
+            except (UnidentifiedImageError,ValueError,OSError,Image.DecompressionBombError): raise ValueError('Choose a valid JPEG, PNG or WebP image.')
+            mime='image/jpeg';suffix='.jpg'
+        else:
+            if not raw.startswith(b'%PDF-'): raise ValueError('Only PDF supplier documents are accepted.')
+            mime='application/pdf';suffix='.pdf'
+        uid=secrets.token_hex(16);folder=Path(app.config['DATA_DIR'])/'files'/w['id'];folder.mkdir(exist_ok=True);path=folder/(uid+suffix);path.write_bytes(raw)
+        db().execute('INSERT INTO uploads VALUES(?,?,?,?,?,?,?,?)',(uid,w['id'],name,str(path),mime,len(raw),kind,time.time()))
+        audit('File uploaded',w['id']);return jsonify(id=uid)
+    @app.get('/api/files/<uid>')
+    @auth()
+    def download_file(uid):
+        w=wedding();f=db().execute('SELECT * FROM uploads WHERE id=? AND wedding_id=?',(uid,w['id'])).fetchone()
+        if not f: abort(404)
+        return send_file(attachment_path(f),mimetype=f['mime'],as_attachment=f['kind']=='document',download_name=f['name'])
+    @app.delete('/api/files/<uid>')
+    @auth()
+    def delete_file(uid):
+        w=wedding(True);f=db().execute('SELECT * FROM uploads WHERE id=? AND wedding_id=?',(uid,w['id'])).fetchone()
+        if not f: abort(404)
+        if json.loads(w['site']).get('cover')==uid: raise ValueError('Remove this cover from the website before deleting it.')
+        db().execute('DELETE FROM uploads WHERE id=?',(uid,));g.on_commit=getattr(g,'on_commit',[])
+        g.on_commit.append(lambda:attachment_path(f).unlink(missing_ok=True));return jsonify(ok=True)
+    @app.get('/weddings/<slug>/cover')
+    def cover(slug):
+        w=public_wedding(slug)
+        if not site_unlocked(w):
+            value=request.args.get('invite','');t=token_row(value,'rsvp')
+            if not t or t['wedding_id']!=w['id']: abort(403)
+        uid=json.loads(w['site']).get('cover');f=db().execute('SELECT * FROM uploads WHERE id=? AND wedding_id=? AND kind="cover"',(uid,w['id'])).fetchone()
+        if not f: abort(404)
+        return send_file(attachment_path(f),mimetype='image/jpeg')
+
+    @app.post('/api/support')
+    @auth()
+    def support_grant():
+        w=wedding();body=json_body()
+        if body.get('revoke'): db().execute('DELETE FROM support WHERE wedding_id=?',(w['id'],));audit('Couple revoked support permission',w['id'])
+        else:
+            reason=str(body.get('reason','')).strip()[:300]
+            if not reason: raise ValueError('Explain what you would like help with.')
+            db().execute('INSERT OR REPLACE INTO support VALUES(?,?,?)',(w['id'],time.time()+1800,reason));audit('Couple granted 30-minute read-only support',w['id'])
+        return jsonify(ok=True)
+    @app.post('/api/sessions/revoke-others')
+    def revoke_sessions():
+        if not g.user or not g.user['verified']: abort(401)
+        db().execute('DELETE FROM sessions WHERE (user_id=? OR pending=?) AND id!=?',(g.user['id'],g.user['id'],g.session['id']))
+        audit('Other sign-in sessions revoked');return jsonify(ok=True)
+    @app.get('/ivoryadmin')
+    @auth(admin=True)
+    def admin_page(): return render_template('admin.html')
+    @app.get('/api/admin')
+    @auth(admin=True)
+    def admin_data():
+        couples=[]
+        for w in db().execute('SELECT * FROM weddings ORDER BY created DESC'):
+            s=json.loads(w['state']);emails=[r['email'] for r in db().execute('SELECT email FROM users JOIN members m ON m.user_id=users.id WHERE m.wedding_id=?',(w['id'],))]
+            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'published':bool(json.loads(w['site']).get('published'))})
+        usage=shutil.disk_usage(app.config['DATA_DIR'])
+        backups=list(Path(app.config['BACKUP_DIR']).glob('planner-*.tar.gz'))
+        deliveries=[dict(r) for r in db().execute('SELECT id,to_address,subject,status,attempts,last_error,created FROM mail ORDER BY created DESC LIMIT 30')]
+        history=[dict(r) for r in db().execute('SELECT actor,action,wedding_id,created FROM audit ORDER BY id DESC LIMIT 100')]
+        grants=[dict(r) for r in db().execute('SELECT * FROM support WHERE expires>?',(time.time(),))]
+        paid=db().execute('SELECT coalesce(sum(amount),0) n FROM purchases WHERE status="paid"').fetchone()['n']
+        return jsonify(couples=couples,settings=config(db()),deliveries=deliveries,history=history,support=grants,
+            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':bool(os.getenv('SMTP_HOST')),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
+    @app.post('/api/admin/access/<wid>')
+    @auth(admin=True)
+    def admin_access(wid):
+        body=json_body();kind=body.get('access');until=body.get('until');reason=str(body.get('reason','')).strip()
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
+        if not w: abort(404)
+        if kind not in ['Trial','Complimentary','Manual extension','Suspended'] or not date_valid(until,False) or not reason: raise ValueError('Choose access, an end date and a reason.')
+        paid_until=max([json.loads(r['terms']).get('access_until','') for r in db().execute('SELECT terms FROM purchases WHERE wedding_id=? AND status="paid"',(wid,))]+[w['access_until'] if w['access_kind']=='Paid' else ''])
+        if until<paid_until: raise ValueError('Existing paid access cannot be shortened here.')
+        db().execute('UPDATE weddings SET access_kind=?,access_until=?,suspended=? WHERE id=?',(kind,until,int(kind=='Suspended'),wid))
+        audit('Access changed to '+kind+' until '+until+'; '+reason[:300],wid);return jsonify(ok=True)
+    @app.put('/api/admin/settings')
+    @auth(admin=True)
+    def admin_settings():
+        body=json_body();current=config(db())
+        from .core import DEFAULT_SETTINGS
+        allowed=set(DEFAULT_SETTINGS)
+        for key,value in body.items():
+            if key not in allowed: raise ValueError('Unknown setting.')
+            if key in ['checkout_enabled','signups_enabled'] and type(value) is not bool: raise ValueError('Invalid switch.')
+            if key=='price_pence' and value is not None and (type(value) is not int or not 100<=value<=1000000): raise ValueError('Price must be at least £1.')
+            if key in ['trial_days','days_after_wedding','max_planning_days','backup_retention_days'] and (type(value) is not int or not 0<=value<=3650): raise ValueError('Invalid day allowance.')
+            if key=='access_rule' and value not in ['wedding','fixed']: raise ValueError('Invalid access rule.')
+            if key in ['sender','reply_to'] and value and not valid_email(value): raise ValueError('Invalid email.')
+            if key in ['reminder_time','backup_time'] and (not isinstance(value,str) or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d',value)): raise ValueError('Invalid time.')
+            if key=='timezone':
+                try: ZoneInfo(value)
+                except (ZoneInfoNotFoundError,ValueError,TypeError): raise ValueError('Use a valid timezone such as Europe/London.')
+            if isinstance(value,str) and len(value)>10000: raise ValueError('Setting too long.')
+            current[key]=value
+        if current['checkout_enabled'] and (not current['price_pence'] or not current['refund_terms'] or not os.getenv('STRIPE_SECRET_KEY') or not os.getenv('STRIPE_WEBHOOK_SECRET')): raise ValueError('Set a price, refund terms and Stripe credentials before enabling checkout.')
+        if current['signups_enabled'] and (not os.getenv('SMTP_HOST') or not current['sender'] or not current['privacy_text'] or not current['terms_text']): raise ValueError('Configure email, privacy notice and terms before enabling sign-ups.')
+        for k,v in current.items(): db().execute('UPDATE settings SET value=? WHERE key=?',(json.dumps(v),k))
+        audit('System settings updated');return jsonify(ok=True)
+    @app.post('/api/admin/email-test')
+    @auth(admin=True)
+    def test_email():
+        queue(g.user['email'],'Ivory Planner email test','Your planner email service is working.');audit('Test email queued');return jsonify(ok=True)
+    @app.get('/api/admin/support/<wid>')
+    @auth(admin=True)
+    def view_support(wid):
+        grant=db().execute('SELECT * FROM support WHERE wedding_id=? AND expires>?',(wid,time.time())).fetchone()
+        if not grant: abort(403,description='The couple must grant support access first.')
+        w=db().execute('SELECT state FROM weddings WHERE id=?',(wid,)).fetchone()
+        s=json.loads(w['state']);audit('Read-only support viewed',wid)
+        # Family notes and guest access/dietary data are not needed for payment support.
+        return jsonify(suppliers=s['suppliers'],payments=s['payments'],reason=grant['reason'],expires=grant['expires'])
+    @app.post('/api/admin/revoke-support/<wid>')
+    @auth(admin=True)
+    def revoke_support(wid): db().execute('DELETE FROM support WHERE wedding_id=?',(wid,));audit('Support session ended',wid);return jsonify(ok=True)
+
+    @app.post('/api/checkout')
+    @auth()
+    def checkout():
+        w=wedding();settings=config(db());key=os.getenv('STRIPE_SECRET_KEY')
+        if w['access_kind'] in ['Paid','Complimentary','Manual extension'] and w['access_until']>=date.today().isoformat():
+            raise ValueError('You already have full access. No new payment is needed.')
+        if not settings['checkout_enabled'] or not key: raise ValueError('Checkout is not open. Contact Ivory Digital for access.')
+        rate('checkout-'+w['id'],12,3600,per_ip=False)
+        db().execute('BEGIN IMMEDIATE')
+        pending=db().execute('SELECT * FROM purchases WHERE wedding_id=? AND status="pending" ORDER BY created DESC LIMIT 1',(w['id'],)).fetchone()
+        if pending and pending['checkout_id']:
+            db().commit()
+            req=urllib.request.Request('https://api.stripe.com/v1/checkout/sessions/'+urllib.parse.quote(pending['checkout_id'],safe=''),headers={'Authorization':'Bearer '+key})
+            try:
+                with urllib.request.urlopen(req,timeout=15) as response: existing=json.load(response)
+                if existing.get('status')=='open' and existing.get('url'): return jsonify(url=existing['url'],terms=json.loads(pending['terms']))
+                if existing.get('status')=='complete': raise ValueError('Your payment is being confirmed. Please wait before trying again.')
+                if existing.get('status')!='expired': raise ValueError('Checkout status could not be confirmed. Please try again later.')
+            except ValueError: raise
+            except Exception: raise ValueError('Your existing checkout could not be checked. No second checkout was created.')
+            db().execute('BEGIN IMMEDIATE')
+            db().execute('UPDATE purchases SET status="expired" WHERE id=? AND status="pending"',(pending['id'],))
+            pending=db().execute('SELECT * FROM purchases WHERE wedding_id=? AND status="pending" ORDER BY created DESC LIMIT 1',(w['id'],)).fetchone()
+            if pending and pending['checkout_id']:
+                db().commit();raise ValueError('Another checkout is already being prepared. Please try again in a moment.')
+        if pending:
+            if pending['created']<time.time()-86400:
+                db().commit();raise ValueError('An earlier checkout needs checking by Ivory Digital before another payment can be created.')
+            pid=pending['id'];terms=json.loads(pending['terms'])
+        else:
+            pid=secrets.token_hex(16);terms={'price_pence':settings['price_pence'],'access_until':access_end(settings,json.loads(w['state'])['date']),'refund_terms':settings['refund_terms'],'checkout_email':g.user['email']}
+            db().execute('INSERT INTO purchases(id,wedding_id,amount,terms,created) VALUES(?,?,?,?,?)',(pid,w['id'],settings['price_pence'],json.dumps(terms),time.time()))
+        db().commit()
+        values={'mode':'payment','success_url':app.config['APP_URL']+'/app?payment=returned','cancel_url':app.config['APP_URL']+'/app',
+            'customer_email':terms.get('checkout_email',g.user['email']),'line_items[0][price_data][currency]':'gbp','line_items[0][price_data][unit_amount]':str(terms['price_pence']),
+            'line_items[0][price_data][product_data][name]':'Ivory Wedding Planner — both partners','line_items[0][quantity]':'1','metadata[purchase_id]':pid}
+        req=urllib.request.Request('https://api.stripe.com/v1/checkout/sessions',data=urllib.parse.urlencode(values).encode(),headers={'Authorization':'Bearer '+key,'Idempotency-Key':pid})
+        try:
+            with urllib.request.urlopen(req,timeout=20) as response: result=json.load(response)
+        except Exception: raise ValueError('Checkout could not be started. Try again shortly; retries use the same purchase, not a new charge.')
+        db().execute('UPDATE purchases SET checkout_id=? WHERE id=?',(result['id'],pid));return jsonify(url=result['url'],terms=terms)
+    @app.post('/api/stripe/webhook')
+    def webhook():
+        key=os.getenv('STRIPE_WEBHOOK_SECRET','');header=request.headers.get('Stripe-Signature','');raw=request.get_data()
+        pairs=urllib.parse.parse_qs(header.replace(',','&'));timestamp=pairs.get('t',[''])[0]
+        try: valid_time=abs(time.time()-int(timestamp))<=300
+        except ValueError: valid_time=False
+        signature=hmac.new(key.encode(),timestamp.encode()+b'.'+raw,hashlib.sha256).hexdigest()
+        if not key or not valid_time or not any(hmac.compare_digest(signature,v) for v in pairs.get('v1',[])): abort(400)
+        event=json.loads(raw);eid=event.get('id')
+        if not eid: abort(400)
+        if db().execute('SELECT 1 FROM webhook_events WHERE id=?',(eid,)).fetchone(): return jsonify(ok=True)
+        obj=event.get('data',{}).get('object',{})
+        if event.get('type') in ['checkout.session.completed','checkout.session.async_payment_succeeded'] and obj.get('payment_status')=='paid':
+            p=db().execute('SELECT * FROM purchases WHERE id=? AND checkout_id=?',(obj.get('metadata',{}).get('purchase_id'),obj.get('id'))).fetchone()
+            if not p or p['amount']!=obj.get('amount_total') or obj.get('currency')!='gbp': abort(400)
+            if p['status']!='paid':
+                terms=json.loads(p['terms']);db().execute('UPDATE purchases SET status="paid" WHERE id=?',(p['id'],))
+                db().execute('UPDATE weddings SET access_kind="Paid",access_until=max(access_until,?) WHERE id=?',(terms['access_until'],p['wedding_id']))
+                audit('Stripe payment confirmed',p['wedding_id'])
+        db().execute('INSERT INTO webhook_events VALUES(?,?)',(eid,time.time()));return jsonify(ok=True)
+    return app

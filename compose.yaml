@@ -1,0 +1,61 @@
+name: weddingplannercouples
+services:
+  web:
+    build:
+      context: /mnt/apps/weddingplannercouples
+    image: weddingplannercouples:local
+    restart: unless-stopped
+    env_file:
+      - /mnt/apps/weddingplannercouples.env
+    environment:
+      DATA_DIR: /data
+      BACKUP_DIR: /backups
+      APP_URL: https://planner.ivorydigital.uk
+    ports:
+      - "30061:8000"
+    volumes:
+      - /mnt/photographers_data/weddingplannercouplesdata:/data
+      - /mnt/apps_snaps_progs/weddingplannercouplesbup:/backups:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+  worker:
+    build:
+      context: /mnt/apps/weddingplannercouples
+    image: weddingplannercouples:local
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    env_file:
+      - /mnt/apps/weddingplannercouples.env
+    environment:
+      DATA_DIR: /data
+      BACKUP_DIR: /backups
+    volumes:
+      - /mnt/photographers_data/weddingplannercouplesdata:/data
+      - /mnt/apps_snaps_progs/weddingplannercouplesbup:/backups
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,time; from app.core import connect; d=connect('/data/planner.sqlite3'); r=d.execute(\"SELECT value FROM settings WHERE key='worker_heartbeat'\").fetchone(); assert r and time.time()-json.loads(r['value'])<180"]
+      interval: 60s
+      timeout: 8s
+      retries: 3
+      start_period: 90s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777

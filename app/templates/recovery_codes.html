@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<main class="setup"><h1>Save your recovery codes</h1><section class="panel"><p>Each code works once if you lose your authenticator. Keep them somewhere secure, away from the server.</p><pre>{{ codes|join('\n') }}</pre><a class="button primary" href="/ivoryadmin">Open your admin area</a></section></main>{% endblock %}

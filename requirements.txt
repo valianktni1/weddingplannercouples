@@ -1,0 +1,6 @@
+Flask==3.1.3
+gunicorn==23.0.0
+Pillow>=11.3,<13
+cryptography>=44,<49
+qrcode==8.2
+tzdata>=2025.2,<2028

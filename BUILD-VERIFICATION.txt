@@ -1,0 +1,11 @@
+Ivory Wedding Planner v1.0.1 — build verification, 14 October 2026
+
+26 backend tests passed (python3 -m pytest -q).
+5 merge regression scenarios passed (node tests/test_merge.cjs).
+Chromium served-app checks passed for guided setup/invitation, 8 planner sections at widths 320/390/736/1024 in light/dark, task saves, remote partner edit merging, rapid changes, website draft/preview and documents. No page JavaScript errors or horizontal overflow in the tested screens. Mobile dark screenshot inspected.
+Live served-page DOM checks passed for onboarding, bookings/instalments/guests, handovers, publication, admin TOTP and all admin screens.
+All JavaScript entry points passed syntax checks. Python application and maintenance scripts compiled.
+Compose YAML parsed; confirmed port 30061, two isolated app services, paths and worker healthcheck. Shell update script syntax passed.
+Backup creation, archive verification, restored download isolation, unique filenames and release of the DB write lock before compression passed regression tests.
+
+Not performed: Docker image build/runtime, TrueNAS runtime, live DNS/TLS/proxy, real SMTP delivery or real Stripe Checkout. Run the README installation/pilot checklist. Public sign-ups and checkout remain closed until configured.

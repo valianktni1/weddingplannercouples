@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');require('../app/static/merge.js');const {merge}=globalThis.ivoryMerge;
+const base={names:['Emma','Jamie'],notes:'',tasks:[{id:'a',title:'Venue',done:false}]};
+const local=structuredClone(base);local.tasks[0].done=true;
+const remote=structuredClone(base);remote.notes='Private note';remote.tasks.push({id:'b',title:'Florist',done:false});
+const merged=merge(base,local,remote);assert.equal(merged.tasks[0].done,true);assert.equal(merged.tasks.length,2);assert.equal(merged.notes,'Private note');
+const conflict=structuredClone(base);conflict.tasks[0].done='other';assert.throws(()=>merge(base,local,conflict),/Both/);
+const deleted=structuredClone(base);deleted.tasks=[];assert.throws(()=>merge(base,local,deleted),/Both/);
+const undone=merge(local,base,merged);assert.equal(undone.tasks[0].done,false);assert.equal(undone.tasks.length,2);assert.equal(undone.notes,'Private note');
+const repeated=structuredClone(local);repeated.budget=10000;assert.equal(merge(local,repeated,merged).tasks.length,2);
+console.log('5 merge regression scenarios passed');
