@@ -1,3 +1,11 @@
+## v1.0.8 — reviewed against the updated booking-connected repository
+
+Started from GitHub main fb104285944eaf7e6e25d737a449ba8079679315, rather than the older v1.0.6 workspace. Reviewed machine authentication/opt-in, the shared create_couple_invitation/welcome_email path, request fingerprint/idempotency mapping, status following resends, exact wedding+30 expiry and the non-root Docker permissions repair. All preserved. The personal booking repository was not modified.
+
+Invitations lacked recipient-visible preview or per-couple edits. Added approved HTML plus plain text, separate trial/complimentary wording, protected read-only preview endpoints and a wide mobile editor. Preview never inserts a wedding, user, token or mail. Custom wording is escaped, header newlines are rejected, and invalid edits roll back account creation. A preview fingerprint rejects changed content/access/trial information before sending. Tokens hold each invitation's wording snapshot. Resending has its own preview and only invalidates the old link when sent.
+
+The integration previously looked up newly queued mail by a fixed subject. It now joins the welcome token and user/wedding, which keeps delivery tracking correct with personalised subjects. Existing integration endpoints and the mapping schema are unchanged. One additive mail HTML column retains all old rows and the encryption key. No real couple, SMTP provider or payment was contacted during verification.
+
 ## v1.0.6 follow-up — onboarding and admin sign-in
 
 The previous admin flow only managed existing couple accounts; it lacked an invitation-led creation path. Added validated admin creation and resending, complete welcome/password/terms acceptance, verification through the invitation, full trial start at acceptance, fixed complimentary end date, existing-account collision protection and a durable policy acceptance record. No real recipient was contacted during testing.
@@ -60,3 +68,4 @@ Manual PayPal payments now have a reference, frozen terms, an unverified reporti
 The global payment method no longer needs to be changed to satisfy an individual couple's preference. Admin creates a targeted bank/PayPal request, optionally queues email to verified members, and the couple accepts the stored terms before instructions. Bank sort code/account number preserve leading zeros. Bank details are visible to the correct signed-in wedding and authorised admin, not public pages or request emails. Outstanding requests cannot be overwritten with a different method. Verification requires matching GBP funds and a unique bank/PayPal receipt reference; self-reporting remains unverified.
 
 85 backend tests pass, including 16 bank/request cases. Chromium checks cover bank setup, per-couple choice, queued email, conflict prevention, consent, leading-zero display, payment reports, manual activation, and four widths/light/dark without overflow or JavaScript errors. A fake mailbox/backend was used and no real transfer or external email was sent. Real recipient details and actual bank receipt must be checked by the merchant on deployment.
+

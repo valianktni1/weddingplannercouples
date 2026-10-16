@@ -1,3 +1,7 @@
+## 1.0.8 — approved invitations and manual preview, 16 October 2026
+
+Use the approved Ivory Digital / Built by Weddings By Mark white-and-sage email design, with distinct complimentary and trial wording, a real setup button, accurate access information and a plain-text fallback. Add read-only admin previews, per-couple subject/heading/message/sign-off editing, mandatory re-preview after UI edits and review before resending. Keep a snapshot with each invitation; replacement links are generated only at send time. Preserve the v1.0.7 booking contract and permissions repair. Select booking email by its invitation record rather than its formerly fixed subject.
+
 ## 1.0.7 — 16 October 2026
 
 Optional scoped WBM booking invitation API, idempotent complimentary invitations, exact wedding+30-day expiry, delivery status and admin key/pause controls. Existing account conflicts require review. Disabled until configured. Includes a backup/image rollback update script.
@@ -43,3 +47,4 @@ Shared accounts and planner, wedding websites and RSVPs, private documents, two-
 Corrected the prototype’s stale next-payment display, hidden overspend, deadline classification, missing entry editing, household-only guest records and hardcoded wedding timings. The real app uses server records and optimistic concurrency checks instead of preview/local data.
 
 Public sign-ups and checkout are deliberately closed until configured. Actual DNS/TLS, email credentials, Stripe credentials and TrueNAS runtime checks remain installation tasks.
+

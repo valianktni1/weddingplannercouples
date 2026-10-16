@@ -76,6 +76,8 @@ def initialise(data_dir):
         db = connect(root / 'planner.sqlite3')
         db.execute('PRAGMA journal_mode=WAL')
         db.executescript(SCHEMA)
+        if 'html_body' not in {r['name'] for r in db.execute('PRAGMA table_info(mail)')}:
+            db.execute("ALTER TABLE mail ADD COLUMN html_body TEXT NOT NULL DEFAULT ''")
         columns={r['name'] for r in db.execute('PRAGMA table_info(weddings)')}
         if 'site_revision' not in columns:
             db.execute('ALTER TABLE weddings ADD COLUMN site_revision INTEGER NOT NULL DEFAULT 0')
@@ -255,3 +257,4 @@ def access_end(settings, wedding_date='', purchased=None):
         if wedding<=max_date:
             return (max(wedding,start)+timedelta(days=int(settings['days_after_wedding']))).isoformat()
     return (start+timedelta(days=365)).isoformat()
+

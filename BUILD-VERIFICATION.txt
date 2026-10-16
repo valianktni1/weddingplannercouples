@@ -1,3 +1,12 @@
+Ivory Wedding Planner v1.0.8 — invitation design/preview, 16 October 2026
+
+121 backend tests passed (108 previous cases plus 13 invitation-email cases). Covers read-only previews, exact preview-to-queued HTML/text matching, per-couple customisation, escaping/header injection, setting-change fingerprint rejection, safe resend, configured trial days, HTML/plain MIME delivery, additive migration and secret preservation. All five booking-connection cases pass, including concurrent replay, scoped authentication and status following resends. All prior planner/payment/SMTP/onboarding checks pass.
+5 merge scenarios, JavaScript syntax and Python compilation passed.
+Served Chromium checks passed: preview without account/email creation, trial select/configured duration, subject/message edits, mandatory re-preview, four widths (320/390/736/1024) in light/dark with no horizontal overflow, preview-before-resend, actual token acceptance, automatic complimentary HTML and manual complimentary preview. No browser script errors. Mobile rendered emails inspected and nested preview padding removed to retain readable width.
+No real messages, payments, Docker build, TrueNAS deployment or production records were used. Browser checks verify responsive HTML; a production mailbox/client display test remains a user installation check.
+
+Earlier verification (historical):
+
 Ivory Wedding Planner v1.0.6 — invitations and admin 2FA resumption, 15 October 2026
 
 103 backend tests passed, including 16 new onboarding/authentication cases. Covers pending challenge resumption, reload and wrong-code retry, expiry requiring password, invitation validation/rollback, duplicate-account protection, CSRF/role boundaries, complimentary access without a purchase, trial start on acceptance, single-use/expired/replaced links, stale invitation mail cancellation, resending after expired-token housekeeping, suspended-account rejection and durable frozen policy acceptance.
@@ -54,3 +63,4 @@ Compose YAML parsed; confirmed port 30061, two isolated app services, paths and 
 Backup creation, archive verification, restored download isolation, unique filenames and release of the DB write lock before compression passed regression tests.
 
 Not performed: Docker image build/runtime, TrueNAS runtime, live DNS/TLS/proxy, real SMTP delivery or real Stripe Checkout. Run the README installation/pilot checklist. Public sign-ups and checkout remain closed until configured.
+

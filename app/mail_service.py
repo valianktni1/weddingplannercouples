@@ -33,7 +33,7 @@ def smtp_ready(settings):
         and s['security'] in ('ssl','starttls') and (not s['user'] or s['password_saved']))
 
 
-def send_email(settings, secret, to, subject, body, message_id):
+def send_email(settings, secret, to, subject, body, message_id, html_body=None):
     if not smtp_ready(settings):
         raise ValueError('Complete the SMTP host, port, security, sender and any required login details first.')
     s=smtp_configuration(settings,secret)
@@ -41,6 +41,7 @@ def send_email(settings, secret, to, subject, body, message_id):
     message['Message-ID']='<'+message_id+'@planner.ivorydigital.uk>'
     if settings.get('reply_to'): message['Reply-To']=settings['reply_to']
     message.set_content(body)
+    if html_body: message.add_alternative(html_body,subtype='html')
     smtp=None
     try:
         if s['security']=='ssl':
@@ -72,3 +73,4 @@ def delivery_error(exc):
     if isinstance(exc,InvalidToken): return 'The saved password cannot be unlocked. Re-enter it and save the email settings.'
     if isinstance(exc,ValueError): return 'Email settings are incomplete. Check the SMTP connection and sender details.'
     return 'Email delivery failed. Check the SMTP details and your provider’s sending permissions.'
+

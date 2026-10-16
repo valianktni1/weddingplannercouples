@@ -20,8 +20,9 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from .core import connect, initialise, config, digest, cipher, valid_totp, empty_state, validate_state, access_end, date_valid
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
+from .invitation_mail import invitation_email
 
-VERSION='1.0.7'
+VERSION='1.0.8'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -45,9 +46,11 @@ def create_app(test_config=None):
         return value
     def token_row(value,kind):
         return db().execute('SELECT * FROM tokens WHERE hash=? AND kind=? AND used=0 AND expires>?',(digest(value),kind,time.time())).fetchone()
-    def queue(to,subject,body,dedupe=None):
-        db().execute('INSERT OR IGNORE INTO mail(id,to_address,subject,body,dedupe,created) VALUES(?,?,?,?,?,?)',
-            (secrets.token_hex(12),to,subject,body,dedupe,time.time()))
+    def queue(to,subject,body,dedupe=None,html_body=''):
+        mid=secrets.token_hex(12)
+        db().execute('INSERT OR IGNORE INTO mail(id,to_address,subject,body,dedupe,created,html_body) VALUES(?,?,?,?,?,?,?)',
+            (mid,to,subject,body,dedupe,time.time(),html_body))
+        return mid
     def rotated(user=None,pending=None):
         db().execute('DELETE FROM sessions WHERE id=?',(g.session['id'],))
         g.session=new_session(user,pending)
@@ -592,30 +595,69 @@ def create_app(test_config=None):
         settings=config(db());public_settings={k:v for k,v in settings.items() if k not in ('smtp_password_encrypted','wbm_booking_key_hash')}
         return jsonify(invitation_default_until=access_end(settings),couples=couples,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
-    def welcome_email(uid,wid,email):
+    def invitation_ready():
         settings=config(db())
         if not smtp_ready(settings): raise ValueError('Save and test your email settings before sending a couple invitation.')
         if not settings['terms_text'].strip() or not settings['privacy_text'].strip(): raise ValueError('Save your terms and privacy notice in Pricing & trials before inviting a couple.')
-        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
-        db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind="welcome"',(uid,))
-        value=token('welcome',user=uid,wedding=wid,email=email,hours=24*7,payload={'terms':settings['terms_text'],'privacy':settings['privacy_text']})
-        label='Complimentary access is included with your Weddings By Mark booking.' if w['access_kind']=='Complimentary' else 'Your free trial starts when you accept this invitation.'
-        queue(email,'Your wedding planner invitation',label+'\nChoose your own password and get started:\n'+app.config['APP_URL']+'/welcome/'+value+'\nThis invitation lasts seven days. Your partner can join from inside your shared planner.',dedupe='welcome:'+digest(value))
-    def create_couple_invitation(body):
+        return settings
+    def invitation_details(body):
         email=body.get('email','');names=body.get('names');day=body.get('date','');kind=body.get('access','Trial');until=body.get('until','')
         if not isinstance(email,str) or not valid_email(email.strip().lower()): raise ValueError('Enter the couple’s main email address.')
         email=email.strip().lower()
         if not isinstance(names,list) or len(names)!=2 or any(not isinstance(n,str) or not n.strip() or len(n)>100 or any(c in n for c in '\r\n\0') for n in names): raise ValueError('Enter both partners’ names, up to 100 characters each.')
         if not date_valid(day) or kind not in ['Trial','Complimentary']: raise ValueError('Choose a valid wedding date and trial or complimentary access.')
         if kind=='Complimentary' and (not date_valid(until,False) or until<date.today().isoformat()): raise ValueError('Choose a complimentary access end date today or later.')
+        if kind=='Trial': until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
+        state=empty_state();state.update(names=[n.strip() for n in names],email=email,date=day)
+        return state,kind,until
+    def pending_invitee(wid):
+        u=db().execute('SELECT u.* FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND u.verified=0 AND EXISTS(SELECT 1 FROM tokens t WHERE t.user_id=u.id AND t.kind="welcome" AND t.wedding_id=m.wedding_id)',(wid,)).fetchone()
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
+        if not u or not w: raise ValueError('This invitation was already accepted or the account was not created by invitation.')
+        if w['suspended']: raise ValueError('This account is suspended. Review its access before sending an invitation.')
+        return u,w
+    def invitation_preview(state,kind,until,email,custom=None):
+        settings=invitation_ready()
+        message=invitation_email(state,kind,until,settings['trial_days'],app.config['APP_URL']+'/welcome/personal-link-generated-when-sent',custom)
+        fingerprint=digest(json.dumps({'to':email,'body':message['body'],'subject':message['subject']},sort_keys=True))
+        return dict(message,to=email,sender=settings['sender'],reply_to=settings['reply_to'] or settings['sender'],preview_hash=fingerprint,preview_only=True)
+    def welcome_email(uid,wid,email,custom=None,preview_hash=None):
+        settings=invitation_ready();w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone();state=json.loads(w['state'])
+        preview=invitation_preview(state,w['access_kind'],w['access_until'],email,custom)
+        if preview_hash is not None and preview_hash!=preview['preview_hash']: raise ValueError('The invitation details changed. Preview it again before sending.')
+        db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind="welcome"',(uid,))
+        value=token('welcome',user=uid,wedding=wid,email=email,hours=24*7,payload={'terms':settings['terms_text'],'privacy':settings['privacy_text'],'email_fields':preview['email']})
+        message=invitation_email(state,w['access_kind'],w['access_until'],settings['trial_days'],app.config['APP_URL']+'/welcome/'+value,preview['email'])
+        return queue(email,message['subject'],message['body'],dedupe='welcome:'+digest(value),html_body=message['html'])
+    @app.post('/api/admin/couples/invitation-preview')
+    @auth(admin=True)
+    def preview_couple_invitation():
+        body=json_body();wid=body.get('wedding_id')
+        if wid:
+            if not isinstance(wid,str): raise ValueError('Choose a couple invitation.')
+            u,w=pending_invitee(wid);state=json.loads(w['state']);kind=w['access_kind'];until=w['access_until'];email=u['email']
+        else:
+            state,kind,until=invitation_details(body);email=state['email']
+            if db().execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): abort(409,description='This email already has an account. Find it in Couples & access; existing plans were not changed.')
+        return jsonify(invitation_preview(state,kind,until,email,body.get('invitation_email')))
+    @app.get('/api/admin/couples/<wid>/invitation-preview')
+    @auth(admin=True)
+    def existing_couple_invitation(wid):
+        u,w=pending_invitee(wid)
+        latest=db().execute("SELECT t.payload,m.subject,m.body,m.html_body,m.status FROM tokens t LEFT JOIN mail m ON m.dedupe=('welcome:' || t.hash) WHERE t.user_id=? AND t.kind='welcome' ORDER BY t.expires DESC LIMIT 1",(u['id'],)).fetchone()
+        custom=json.loads(latest['payload']).get('email_fields') if latest else None
+        result=invitation_preview(json.loads(w['state']),w['access_kind'],w['access_until'],u['email'],custom)
+        result['previous']={'subject':latest['subject'],'body':latest['body'],'html':latest['html_body'],'status':latest['status']} if latest and latest['subject'] else None
+        return jsonify(result)
+    def create_couple_invitation(body):
+        state,kind,until=invitation_details(body);email=state['email']
         if not body.get('_connection'):
             rate('admin-invite',50,3600,per_ip=False);db().execute('BEGIN IMMEDIATE')
         if db().execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): abort(409,description='This email already has an account. Find it in Couples & access to manage access or resend its invitation. No existing plans were changed.')
-        uid=secrets.token_hex(16);wid=secrets.token_hex(16);state=empty_state();state.update(names=[n.strip() for n in names],email=email,date=day)
-        if kind=='Trial': until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
+        uid=secrets.token_hex(16);wid=secrets.token_hex(16)
         db().execute('INSERT INTO users(id,email,password,created) VALUES(?,?,?,?)',(uid,email,generate_password_hash(secrets.token_urlsafe(48)),time.time()))
         db().execute('INSERT INTO weddings(id,state,access_kind,access_until,created) VALUES(?,?,?,?,?)',(wid,json.dumps(state),kind,until,time.time()))
-        db().execute('INSERT INTO members VALUES(?,?)',(wid,uid));welcome_email(uid,wid,email)
+        db().execute('INSERT INTO members VALUES(?,?)',(wid,uid));welcome_email(uid,wid,email,body.get('invitation_email'),body.get('preview_hash'))
         audit('Couple invited with '+kind+' access until '+until,wid)
         return jsonify(ok=True,wedding_id=wid,message='Invitation email queued. They will choose their own password.'),201
     @app.post('/api/admin/couples/invite')
@@ -690,7 +732,7 @@ def create_app(test_config=None):
             'until':(day+timedelta(days=30)).isoformat(),'_connection':True})
         wid=response.get_json()['wedding_id']
         uid=db().execute('SELECT user_id FROM members WHERE wedding_id=?',(wid,)).fetchone()['user_id']
-        mail=db().execute('SELECT id FROM mail WHERE to_address=? AND subject="Your wedding planner invitation" ORDER BY created DESC LIMIT 1',(body['email'],)).fetchone()
+        mail=db().execute("SELECT m.id FROM mail m JOIN tokens t ON m.dedupe=('welcome:' || t.hash) WHERE t.user_id=? AND t.wedding_id=? AND t.kind='welcome' ORDER BY m.created DESC LIMIT 1",(uid,wid)).fetchone()
         db().execute('INSERT INTO wbm_booking_invitations VALUES(?,?,?,?,?,?)',(body['booking_id'],wid,uid,mail['id'],fingerprint,time.time()))
         audit('Complimentary invitation from WBM booking '+body['booking_id'],wid)
         row=db().execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(body['booking_id'],)).fetchone()
@@ -700,9 +742,8 @@ def create_app(test_config=None):
     @auth(admin=True)
     def admin_resend_welcome(wid):
         rate('admin-resend-invite',20,3600,per_ip=False)
-        row=db().execute('SELECT u.* FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND u.verified=0 AND EXISTS(SELECT 1 FROM tokens t WHERE t.user_id=u.id AND t.kind="welcome" AND t.wedding_id=m.wedding_id)',(wid,)).fetchone()
-        if not row: raise ValueError('This invitation was already accepted or the account was not created by invitation.')
-        welcome_email(row['id'],wid,row['email']);audit('Couple invitation resent',wid);return jsonify(ok=True)
+        row,w=pending_invitee(wid);body=json_body()
+        welcome_email(row['id'],wid,row['email'],body.get('invitation_email'),body.get('preview_hash'));audit('Couple invitation resent',wid);return jsonify(ok=True)
     @app.route('/welcome/<value>',methods=['GET','POST'])
     def welcome(value):
         t=token_row(value,'welcome')
@@ -1057,3 +1098,4 @@ def create_app(test_config=None):
                 audit('Stripe payment confirmed',p['wedding_id'])
         db().execute('INSERT INTO webhook_events VALUES(?,?)',(eid,time.time()));return jsonify(ok=True)
     return app
+

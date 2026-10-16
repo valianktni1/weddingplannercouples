@@ -21,7 +21,7 @@ def invite(admin,**extra):
 
 
 def invitation(app):
-    db=database(app);row=db.execute('SELECT * FROM mail WHERE subject="Your wedding planner invitation" ORDER BY created DESC LIMIT 1').fetchone();db.close()
+    db=database(app);row=db.execute('SELECT * FROM mail WHERE dedupe LIKE "welcome:%" ORDER BY created DESC LIMIT 1').fetchone();db.close()
     path=re.search(r'http://localhost(/welcome/\S+)',row['body']).group(1)
     return path,row
 
@@ -52,7 +52,7 @@ def test_expired_pending_session_requires_password_again(app):
 def test_complimentary_invitation_password_terms_acceptance_and_repeat(app):
     admin=prepared(app);r=invite(admin);assert r.status_code==201,r.json
     wid=r.json['wedding_id'];path,row=invitation(app)
-    assert 'Complimentary access' in row['body']
+    assert 'included at no extra cost' in row['body']
     assert admin.get('/api/admin').json['couples'][0]['invitation_pending']
     c=app.test_client();html=c.get(path).text
     assert 'No payment is needed' in html and 'Invitation terms' in html
@@ -139,3 +139,4 @@ def test_housekeeping_preserves_resend_for_long_expired_invitation(app):
     assert next(w for w in admin.get('/api/admin').json['couples'] if w['id']==wid)['invitation_pending']
     assert admin.post('/api/admin/couples/'+wid+'/resend-invitation',json={},headers=headers(admin,'/ivoryadmin')).status_code==200
     new,row=invitation(app);assert app.test_client().get(new).status_code==200
+

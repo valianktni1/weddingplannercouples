@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.7
+# Ivory Digital Wedding Planner — v1.0.8
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -329,3 +329,17 @@ curl -fL https://raw.githubusercontent.com/valianktni1/weddingplannercouples/mai
 This adds a booking-invitation mapping table; it does not replace existing data.
 No live access is enabled just by deploying. Existing manual invitations remain
 available. Planner port remains **30063**, as in the current compose file.
+
+
+
+## Invitation preview and personal wording — v1.0.8
+
+The approved white-and-sage invitation now sends as a responsive HTML email with a complete plain-text fallback. The header reads Ivory Digital / Built by Weddings By Mark / Wedding Planner. Complimentary and trial invitations use their own approved wording. The trial length comes from admin settings; access dates come from the couple account. Wedding-plus-30-day wording appears only when that is the actual access rule for that invitation.
+
+In Couples & access, choose Invite a couple, enter their details and choose Trial or Complimentary. Preview invitation opens the proposed email before an account or email is created. You can change the subject, heading, personal message and sign-off for this couple. After an edit, use Preview your changes before the Send button becomes available. Setup instructions, feature list, access information and the seven-day personal link are inserted automatically. A preview link is a placeholder; the real token is generated only when you send.
+
+Preview / resend invitation opens the same editor for a pending invitation, retaining its previous personal wording where available. You can also read the last queued email. Reviewing/cancelling leaves the old invitation valid. Sending a replacement rotates the link and existing stale-mail checks cancel the obsolete queued message. Page navigation/refresh warns about an unsent edited invitation.
+
+The booking connection from v1.0.7 is retained. Automatic requests use the approved complimentary standard with no manual approval step. Its booking identifier, authentication, idempotency, status endpoints and exact wedding+30-day expiry are unchanged. Personal manual edits do not change the standard or other couples. The booking app's existing 30-minute scheduling delay remains controlled in the booking app. No booking app update or key rotation is needed for this planner change.
+
+The only storage migration adds a blank-by-default mail.html_body column; legacy queued email and all existing records remain intact. Docker's non-root code permission fix is retained. Update only the planner using its usual backup/pull/build/recreate steps and verify /healthz returns 1.0.8.
