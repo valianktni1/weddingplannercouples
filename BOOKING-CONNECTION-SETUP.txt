@@ -1,0 +1,73 @@
+BookingSystem2026 V8.71 + Wedding Planner 1.0.7
+Complimentary planner invitation, 30 MINUTES after successful deposit email.
+
+Both repositories are included in the combined full-source ZIP. If updating
+from GitHub directly, no ZIP copying or Desktop push is needed.
+
+UPDATE ORDER
+1. Planner first. Run on TrueNAS:
+
+curl -fL https://raw.githubusercontent.com/valianktni1/weddingplannercouples/main/scripts/deploy-booking-connection.sh -o /tmp/wbm-planner-v107.sh && sudo bash /tmp/wbm-planner-v107.sh
+
+This uses the existing /mnt/apps/weddingplannercouples Git checkout, backs up
+planner data, builds while the old app runs and prints an image rollback command
+for both planner services. It stops if local Git edits need preserving.
+
+2. Personal booking app second:
+
+curl -fL https://raw.githubusercontent.com/valianktni1/bookingsystem2026/main/DEPLOY-V8.71.sh -o /tmp/wbm-deploy-v871.sh && sudo bash /tmp/wbm-deploy-v871.sh
+
+This uses the existing /mnt/apps/dockge/data/bookingsystem2026 stack. It backs up
+the database and saves the previous image before replacing only the app. No git
+pull is attempted in that Dockge folder. The rollback command is printed.
+
+ENABLE ONCE BOTH ARE HEALTHY
+1. Planner: https://planner.ivorydigital.uk/ivoryadmin
+   System & security → Weddings By Mark booking connection → Create / replace
+   connection key. Copy the key shown once. Keep it private.
+2. Personal booking: Business settings → Planner invitations.
+   Paste the key, tick Enable automatic complimentary invitations and Save.
+   Saving checks the planner connection, SMTP readiness and policies first.
+3. Return here to see Scheduled / Email queued / Invitation sent / Needs attention.
+
+No invitations are sent just by deploying. Enabling applies only to new eligible
+payment confirmation emails sent after activation: there is no historical batch.
+Do not test using real couple records; use an appropriate test environment.
+Booking records explicitly marked Testing Mode never trigger the connection.
+
+TRIGGER AND SAFEGUARDS
+- Native WBM wedding, accepted quote, full requested deposit recorded as paid.
+- Its qualifying confirmation email must be successfully accepted by SMTP.
+- Persisted task due 30 minutes after that successful send; normally picked up
+  within the next 30-second scan. Planner delivery is queued through its worker.
+- Send both first names, main email and wedding date; complimentary access ends
+  exactly 30 calendar days after the wedding date, inclusive as normal in planner.
+- One request/account/invitation per booking identifier. A lost response can be
+  retried safely. The planner mail worker retains its existing SMTP retry rules.
+- Missing names/email/date or an existing planner account show Needs attention.
+  Existing accounts/plans/paid access are not overwritten or silently shortened.
+- Imports, paused automation, test bookings, cancelled/completed weddings, partial
+  deposits and failed confirmation emails do not trigger automatic invitations.
+- Successful manual retries of qualifying failed deposit emails start a new
+  30-minute delay. An earlier partial-payment receipt cannot substitute for one.
+- Later payments do not create a second invitation. Existing invitation requests
+  with changed couple details need a review rather than silently replacing plans.
+- A connection failure retries with a capped delay; persistent errors require
+  Retry / check status after correcting the cause. Pausing in booking settings
+  stops new outbound calls. It cannot recall an email already handed to planner.
+- If the planner mail worker gives up, review Email & reminders and deliberately
+  resend through Couples & access. Retry / check status follows that new email.
+- The invitation link lasts seven days. The couple chooses a password and accepts
+  the planner terms. Their partner joins using the existing partner invitation.
+
+STORAGE / ROLLBACK
+Planner: one additive mapping table; key hash in its settings.
+Booking: one additive job table and a default-false receipt eligibility flag.
+Saved old receipts remain false. Credentials are encrypted with a key derived
+from the existing session secret; retain that secret/backups. No database is
+shared between the apps and no admin password/2FA token is used by the connection.
+Older application images ignore the additive tables/column during code rollback.
+The update does not change invoices, bank details, templates or saved plans.
+
+V8.71 includes all previous V8.70, V8.69 and V8.68 changes. The existing
+WEBSITE-EMBED-V8.69.html remains the correct website embed if still required.

@@ -1,3 +1,7 @@
+## 1.0.7 — 16 October 2026
+
+Optional scoped WBM booking invitation API, idempotent complimentary invitations, exact wedding+30-day expiry, delivery status and admin key/pause controls. Existing account conflicts require review. Disabled until configured. Includes a backup/image rollback update script.
+
 # v1.0.6 — couple invitations and admin sign-in resumption
 
 Add an admin invitation journey for enquiries and complimentary wedding couples. The couple chooses their own password and accepts recorded policy versions through a single-use seven-day link. Trials start on acceptance. Complimentary access preserves the chosen end date; no purchase is created. Existing accounts are never overwritten. Pending invitations are visible and can be resent, replacing the previous link and cancelling obsolete queued emails.

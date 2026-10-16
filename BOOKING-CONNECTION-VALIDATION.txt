@@ -1,0 +1,29 @@
+16 October 2026
+
+New booking integration: 13 tests passed, including exact 30-minute deadline,
+persisted jobs across sessions, no partial/failed/import/test/historical sends,
+missing details, cancellation, response-loss replay, existing-account conflict,
+credential encryption/opt-in/pause/authentication, full-deposit receipt marking,
+failed-confirmation retry and additive migration preserving old receipts.
+
+Existing booking checks: 6 reliability/payment workflow tests and 7 invoice
+amendment tests passed. Invoice preview module: 3 passed, 1 existing assertion
+failed because it expects an old client.js cache version. Both that test and the
+client page are byte-identical to the V8.70 baseline; unrelated to this change.
+
+Planner: full suite 107 passed before the final manual-resend status refinement;
+all 5 dedicated booking-connection tests passed after that refinement, including
+concurrent replay (one account/mail), exact wedding+30 expiry, existing-account
+protection, input validation, auth/pause/key rotation and following admin resends.
+Planner manual invitation/onboarding regression tests included in the full run.
+
+Cross-app contract check exercised the actual booking scheduler against the
+actual Flask planner API using local transport: one account, one invitation,
+correct expiry, idempotent replay and queued→sent status. No real mail sent.
+
+Mobile browser: booking settings opens and saves disabled; planner password+2FA,
+mobile menu, connection-key generation and no horizontal overflow. Syntax checks
+passed for both new JS flows, Python and deployment shell scripts.
+
+No Docker daemon / TrueNAS deployment, live SMTP or production data was used.
+Health checks and backup/image rollback are included in the deploy scripts.

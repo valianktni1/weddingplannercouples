@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.6
+# Ivory Digital Wedding Planner — v1.0.7
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -290,3 +290,42 @@ SMTP, a sender, terms and a privacy notice must be configured first. The account
 ### Returning to admin during two-step sign-in
 
 After entering the admin password, reopening /ivoryadmin or /ivoryadmin/login resumes the pending authenticator step. Reloading does not consume it. An incorrect, expired or reused code keeps the entry form visible for another attempt. Already authenticated visits to the code address return to admin. Truly expired/lost browser sessions still require signing in again; two-step verification is retained. Real Android app-switch behaviour must be checked on the user's device after deployment.
+
+
+## WBM complimentary booking invitations — v1.0.7
+
+This optional connection is off until deliberately configured. It pairs with
+BookingSystem2026 V8.71. Deploy the planner first, then the booking app.
+In planner admin → System & security, select Create / replace connection key.
+The key is shown once. Paste it into the personal booking app → Business settings
+→ Planner invitations, then enable automatic invitations there. The planner
+stores only the key hash; the booking app encrypts its copy. A rotated key stops
+the previous connection. Do not commit keys or paste them into support messages.
+
+The booking app waits **30 minutes** after successfully sending a qualifying
+full-deposit confirmation. It then sends both first names, main email, wedding
+date and its booking identifier. The planner creates complimentary access until
+**30 days after that wedding date** and queues its existing seven-day invitation.
+The couple sets their password and accepts the terms as usual. Sending is within
+normal worker intervals, rather than at an exact second. SMTP must be working.
+
+Requests are tied to the booking identifier: retries do not create extra accounts
+or emails. Existing accounts or changed request details require an admin review;
+the integration never overwrites plans, changes paid access or resends invites
+silently. Successful requests report queued/sent/accepted status to the booking
+app. Email failures are handled by the existing mail worker. After its retries
+are exhausted, review Email & reminders; an intentional admin resend is reflected
+in the booking app after Retry / check status. Old bookings, imports, tests,
+partial deposits and failed confirmation emails are excluded by the booking app.
+No historical invitation batch is sent when you enable the connection.
+
+Update on the existing TrueNAS installation (backs up first and prints an image
+rollback command for both planner services):
+
+```bash
+curl -fL https://raw.githubusercontent.com/valianktni1/weddingplannercouples/main/scripts/deploy-booking-connection.sh -o /tmp/wbm-planner-v107.sh && sudo bash /tmp/wbm-planner-v107.sh
+```
+
+This adds a booking-invitation mapping table; it does not replace existing data.
+No live access is enabled just by deploying. Existing manual invitations remain
+available. Planner port remains **30063**, as in the current compose file.

@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from cryptography.fernet import Fernet
 
 SCHEMA = '''
+CREATE TABLE IF NOT EXISTS wbm_booking_invitations(booking_id TEXT PRIMARY KEY,wedding_id TEXT UNIQUE NOT NULL,user_id TEXT NOT NULL,mail_id TEXT NOT NULL,request_hash TEXT NOT NULL,created REAL NOT NULL,FOREIGN KEY(wedding_id) REFERENCES weddings(id),FOREIGN KEY(user_id) REFERENCES users(id));
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'couple',verified INTEGER NOT NULL DEFAULT 0,totp TEXT,recovery TEXT NOT NULL DEFAULT '[]',totp_last INTEGER NOT NULL DEFAULT -1,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS weddings(id TEXT PRIMARY KEY,state TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0,access_kind TEXT NOT NULL DEFAULT 'Trial',access_until TEXT NOT NULL,suspended INTEGER NOT NULL DEFAULT 0,slug TEXT UNIQUE,site TEXT NOT NULL DEFAULT '{}',code_hash TEXT,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS members(wedding_id TEXT NOT NULL,user_id TEXT NOT NULL UNIQUE,PRIMARY KEY(wedding_id,user_id),FOREIGN KEY(wedding_id) REFERENCES weddings(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);

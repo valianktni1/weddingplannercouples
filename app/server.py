@@ -21,7 +21,7 @@ from .core import connect, initialise, config, digest, cipher, valid_totp, empty
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
 
-VERSION='1.0.6'
+VERSION='1.0.7'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -112,6 +112,16 @@ def create_app(test_config=None):
     def before():
         g.cookie=None;g.user=None
         if request.path.startswith('/static/') or request.path=='/healthz': return
+        if request.path.startswith('/api/integrations/wbm/'):
+            # A narrowly scoped machine credential, never an admin session.
+            request.max_content_length=4096
+            settings=config(db());provided=request.headers.get('Authorization','')
+            stored=settings.get('wbm_booking_key_hash','')
+            if not stored or not provided.startswith('Bearer ') or len(provided)>200 or not hmac.compare_digest(digest(provided[7:]),stored):
+                abort(401,description='Booking connection not authorised.')
+            if not settings.get('wbm_booking_enabled',False): abort(409,description='Booking connection is paused in planner admin.')
+            rate('wbm-connection',3000,3600,per_ip=False)
+            return
         raw=request.cookies.get('ivory_session','');row=db().execute('SELECT * FROM sessions WHERE id=? AND expires>?',(digest(raw),time.time())).fetchone() if raw else None
         g.session=dict(row) if row else new_session()
         if g.session['user_id']:
@@ -579,7 +589,7 @@ def create_app(test_config=None):
             if terms.get('provider') not in ['paypalme','bank']: continue
             c=next((c for c in couples if c['id']==p['wedding_id']),{})
             paypal_payments.append({**paypal_details(p),'wedding_id':p['wedding_id'],'names':c.get('names',''),'email':c.get('email',''),'transaction_id':p['transaction_id']})
-        settings=config(db());public_settings={k:v for k,v in settings.items() if k!='smtp_password_encrypted'}
+        settings=config(db());public_settings={k:v for k,v in settings.items() if k not in ('smtp_password_encrypted','wbm_booking_key_hash')}
         return jsonify(invitation_default_until=access_end(settings),couples=couples,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
     def welcome_email(uid,wid,email):
@@ -591,16 +601,15 @@ def create_app(test_config=None):
         value=token('welcome',user=uid,wedding=wid,email=email,hours=24*7,payload={'terms':settings['terms_text'],'privacy':settings['privacy_text']})
         label='Complimentary access is included with your Weddings By Mark booking.' if w['access_kind']=='Complimentary' else 'Your free trial starts when you accept this invitation.'
         queue(email,'Your wedding planner invitation',label+'\nChoose your own password and get started:\n'+app.config['APP_URL']+'/welcome/'+value+'\nThis invitation lasts seven days. Your partner can join from inside your shared planner.',dedupe='welcome:'+digest(value))
-    @app.post('/api/admin/couples/invite')
-    @auth(admin=True)
-    def admin_invite_couple():
-        body=json_body();email=body.get('email','');names=body.get('names');day=body.get('date','');kind=body.get('access','Trial');until=body.get('until','')
+    def create_couple_invitation(body):
+        email=body.get('email','');names=body.get('names');day=body.get('date','');kind=body.get('access','Trial');until=body.get('until','')
         if not isinstance(email,str) or not valid_email(email.strip().lower()): raise ValueError('Enter the couple’s main email address.')
         email=email.strip().lower()
         if not isinstance(names,list) or len(names)!=2 or any(not isinstance(n,str) or not n.strip() or len(n)>100 or any(c in n for c in '\r\n\0') for n in names): raise ValueError('Enter both partners’ names, up to 100 characters each.')
         if not date_valid(day) or kind not in ['Trial','Complimentary']: raise ValueError('Choose a valid wedding date and trial or complimentary access.')
         if kind=='Complimentary' and (not date_valid(until,False) or until<date.today().isoformat()): raise ValueError('Choose a complimentary access end date today or later.')
-        rate('admin-invite',50,3600,per_ip=False);db().execute('BEGIN IMMEDIATE')
+        if not body.get('_connection'):
+            rate('admin-invite',50,3600,per_ip=False);db().execute('BEGIN IMMEDIATE')
         if db().execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone(): abort(409,description='This email already has an account. Find it in Couples & access to manage access or resend its invitation. No existing plans were changed.')
         uid=secrets.token_hex(16);wid=secrets.token_hex(16);state=empty_state();state.update(names=[n.strip() for n in names],email=email,date=day)
         if kind=='Trial': until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
@@ -609,6 +618,84 @@ def create_app(test_config=None):
         db().execute('INSERT INTO members VALUES(?,?)',(wid,uid));welcome_email(uid,wid,email)
         audit('Couple invited with '+kind+' access until '+until,wid)
         return jsonify(ok=True,wedding_id=wid,message='Invitation email queued. They will choose their own password.'),201
+    @app.post('/api/admin/couples/invite')
+    @auth(admin=True)
+    def admin_invite_couple():
+        body=json_body();body.pop('_connection',None)
+        return create_couple_invitation(body)
+
+    @app.post('/api/admin/booking-connection')
+    @auth(admin=True)
+    def admin_booking_connection():
+        body=json_body()
+        if type(body.get('enabled')) is not bool: raise ValueError('Choose whether the booking connection is enabled.')
+        settings=config(db());value=None
+        if body.get('rotate'):
+            value='wbm_planner_'+secrets.token_urlsafe(36)
+            db().execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('wbm_booking_key_hash',json.dumps(digest(value))))
+        elif body['enabled'] and not settings.get('wbm_booking_key_hash'):
+            raise ValueError('Create a connection key first.')
+        db().execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('wbm_booking_enabled',json.dumps(body['enabled'])))
+        audit('Booking invitation connection '+('enabled' if body['enabled'] else 'paused'))
+        return jsonify(ok=True,key=value,enabled=body['enabled'])
+
+    @app.get('/api/integrations/wbm/status')
+    def booking_connection_status():
+        settings=config(db())
+        return jsonify(ok=True,ready=bool(smtp_ready(settings) and settings['terms_text'].strip() and settings['privacy_text'].strip()),version=VERSION)
+
+    def booking_invitation_status(row):
+        user=db().execute('SELECT verified FROM users WHERE id=?',(row['user_id'],)).fetchone()
+        # Follow a deliberate admin resend, without sending a second email here.
+        delivery=db().execute("SELECT m.status FROM mail m JOIN tokens t ON m.dedupe=('welcome:' || t.hash) WHERE t.user_id=? AND t.kind='welcome' ORDER BY m.created DESC LIMIT 1",(row['user_id'],)).fetchone()
+        if not delivery: delivery=db().execute('SELECT status FROM mail WHERE id=?',(row['mail_id'],)).fetchone()
+        w=db().execute('SELECT access_until FROM weddings WHERE id=?',(row['wedding_id'],)).fetchone()
+        return {'booking_id':row['booking_id'],'wedding_id':row['wedding_id'],
+                'status':'accepted' if user and user['verified'] else delivery['status'] if delivery else 'needs_attention',
+                'access_until':w['access_until'] if w else None}
+
+    @app.get('/api/integrations/wbm/invitations/<booking_id>')
+    def get_booking_invitation(booking_id):
+        row=db().execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(booking_id,)).fetchone()
+        if not row: abort(404)
+        return jsonify(booking_invitation_status(row))
+
+    @app.post('/api/integrations/wbm/invitations')
+    def create_booking_invitation():
+        body=json_body()
+        expected={'booking_id','first_name','partner_first_name','email','wedding_date'}
+        if set(body)!=expected: raise ValueError('Supply the booking, both first names, email and wedding date.')
+        if not isinstance(body['booking_id'],str) or not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',body['booking_id']): raise ValueError('Invalid booking identifier.')
+        if not isinstance(body['wedding_date'],str) or not date_valid(body['wedding_date'],False): raise ValueError('A wedding date is required.')
+        day=date.fromisoformat(body['wedding_date'])
+        if day<date.today(): raise ValueError('The wedding date must be today or later.')
+        if not isinstance(body['email'],str): raise ValueError('A valid email is required.')
+        body['email']=body['email'].strip().lower()
+        for key in ('first_name','partner_first_name'):
+            if not isinstance(body[key],str) or not body[key].strip() or len(body[key])>100: raise ValueError('Both first names are required.')
+            body[key]=body[key].strip()
+        fingerprint=digest(json.dumps(body,sort_keys=True,separators=(',',':')))
+        # Serialise the deduplication check with invitation creation. If the
+        # response is lost, replay returns the same queued invitation.
+        rate('wbm-invites',100,3600,per_ip=False)
+        db().execute('BEGIN IMMEDIATE')
+        existing=db().execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(body['booking_id'],)).fetchone()
+        if existing:
+            if existing['request_hash']!=fingerprint: abort(409,description='This booking already has a planner invitation with different details. Review it in planner admin.')
+            return jsonify(booking_invitation_status(existing))
+        # The shared invitation function starts its own immediate transaction.
+        # Keep this lock: suppress its rate/BEGIN setup only for this call.
+        response,code=create_couple_invitation({'names':[body['first_name'],body['partner_first_name']],
+            'email':body['email'],'date':body['wedding_date'],'access':'Complimentary',
+            'until':(day+timedelta(days=30)).isoformat(),'_connection':True})
+        wid=response.get_json()['wedding_id']
+        uid=db().execute('SELECT user_id FROM members WHERE wedding_id=?',(wid,)).fetchone()['user_id']
+        mail=db().execute('SELECT id FROM mail WHERE to_address=? AND subject="Your wedding planner invitation" ORDER BY created DESC LIMIT 1',(body['email'],)).fetchone()
+        db().execute('INSERT INTO wbm_booking_invitations VALUES(?,?,?,?,?,?)',(body['booking_id'],wid,uid,mail['id'],fingerprint,time.time()))
+        audit('Complimentary invitation from WBM booking '+body['booking_id'],wid)
+        row=db().execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(body['booking_id'],)).fetchone()
+        return jsonify(booking_invitation_status(row)),201
+
     @app.post('/api/admin/couples/<wid>/resend-invitation')
     @auth(admin=True)
     def admin_resend_welcome(wid):
