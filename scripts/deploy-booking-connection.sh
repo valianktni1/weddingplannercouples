@@ -31,17 +31,17 @@ EOF
 printf 'Rollback command:\nsudo docker compose -f %q -f %q up -d --no-build --force-recreate\n' "$rollback_dir/compose.yaml" "$rollback_dir/rollback.yaml"
 printf 'Previous code commit: %s\n' "$previous_commit"
 echo '2/4 Pulling and building while the current planner stays running...'
-git pull --ff-only
+(umask 022; git pull --ff-only)
 "${compose[@]}" config --quiet
 "${compose[@]}" build web
+trap 'echo "Update failed. Use the rollback command printed above."' ERR
 echo '3/4 Restarting only the planner web and worker...'
 "${compose[@]}" up -d --force-recreate
-trap 'echo "Update failed. Use the rollback command printed above."' ERR
 echo '4/4 Checking planner version and health...'
 for attempt in {1..30}; do
   if "${compose[@]}" exec -T web python -c 'import json,urllib.request; d=json.load(urllib.request.urlopen("http://127.0.0.1:8000/healthz",timeout=4)); assert d["status"]=="ok" and d["version"]=="1.0.7"' >/dev/null 2>&1; then
     "${compose[@]}" ps
-    echo 'Planner 1.0.7 is responding. The new booking connection is paused until you set it up.'
+    echo 'Planner 1.0.7 is responding. Check the booking connection setting in planner admin.'
     exit 0
   fi
   sleep 2
