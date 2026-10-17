@@ -1,3 +1,13 @@
+Ivory Wedding Planner v1.1.0 — 17 October 2026
+
+144 backend cases verified: all 121 prior regressions plus 23 new Hub cases. The final full run passed 143 cases; the subsequent targeted Hub run passed all 23 including the added per-account rate isolation test. Covered ownership/CSRF, unchanged state schema, read-only scoped previews, audience filtering/escaping, partner concurrency, seating capacity/rename/delete/import, cross-wedding isolation, assigned-job writes, stale confirmation, change notices, expiry/revocation/suspension/access, optional email deduplication/cancellation, profile PDF/offline privacy, ready/admin metadata, malformed input rollback, CSV formula safety, preservation of Hub work during partner joins and private-only changes not leaking into public notices.
+5 JavaScript merge regression scenarios passed. Python compilation and syntax checks for planner/admin/Hub/shared-view scripts and deployment shell passed.
+Chromium served-app workflow passed for seating assignment/capacity/keyboard table movement, share preview/create, assigned recipient job completion, confirmation and changed-plan notice, PDF/offline downloads, ready status, admin journey filters and revocation. Phone/desktop widths 320/390/736/1024 in light/dark had no horizontal overflow or page-script errors. Mobile Hub, seating, shared page and admin screenshots inspected. A two-page PDF day pack was rendered to PNG and both pages visually checked.
+
+No actual email, production data, Docker daemon, TrueNAS runtime or public deployment was used. Exact mailbox delivery and installation health remain deployment checks. The supplied script backs up data, preserves the running image, prints rollback instructions and checks version 1.1.0. Existing booking connection needs no update/key rotation.
+
+Earlier verification (historical):
+
 Ivory Wedding Planner v1.0.8 — invitation design/preview, 16 October 2026
 
 121 backend tests passed (108 previous cases plus 13 invitation-email cases). Covers read-only previews, exact preview-to-queued HTML/text matching, per-couple customisation, escaping/header injection, setting-change fingerprint rejection, safe resend, configured trial days, HTML/plain MIME delivery, additive migration and secret preservation. All five booking-connection cases pass, including concurrent replay, scoped authentication and status following resends. All prior planner/payment/SMTP/onboarding checks pass.

@@ -90,6 +90,11 @@ def current_mail(db,row,settings,now):
             t=db.execute('SELECT * FROM tokens WHERE hash=? AND kind=? AND used=0 AND expires>?',(digest(path[len(prefix):]),kind,now.timestamp())).fetchone()
             if not t: return None
     key=row['dedupe'] or ''
+    if key.startswith(('hub-invite:','hub-change:')):
+        parts=key.split(':');sh=db.execute('SELECT h.*,w.suspended,w.access_until FROM hub_shares h JOIN weddings w ON w.id=h.wedding_id WHERE h.id=?',(parts[1],)).fetchone()
+        if not sh or sh['revoked'] or sh['suspended'] or sh['expires']<=now.timestamp() or sh['access_until']<now.date().isoformat():return None
+        if parts[0]=='hub-change' and (not sh['notify'] or len(parts)!=3 or sh['last_notice_hash']!=parts[2]):return None
+        return row['body']
     if key.startswith('welcome:'):
         t=db.execute('SELECT t.* FROM tokens t JOIN users u ON u.id=t.user_id JOIN weddings w ON w.id=t.wedding_id WHERE t.hash=? AND t.kind="welcome" AND t.used=0 AND t.expires>? AND u.verified=0 AND w.suspended=0',(key.split(':',1)[1],now.timestamp())).fetchone()
         return row['body'] if t else None

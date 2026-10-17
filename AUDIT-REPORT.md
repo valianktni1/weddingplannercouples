@@ -1,3 +1,15 @@
+## v1.1.0 — coordination, seating and admin journey audit
+
+Built on main 658f3ce2f5bc17fd3811581632ec7b95a02f9e5f (v1.0.8). Read the personal booking app's planner_integration.py and verified its existing readiness/status contract does not pin the planner version. The booking app repository was not changed. Existing invitation templates, mail transport, connection mapping, exact wedding+30 expiry, payment flows and Docker permission fix are preserved.
+
+Hub-only resources are stored in additive tables. The existing wedding state schema is unchanged; guest.table remains authoritative. Every owner mutation checks membership, active editing access, CSRF, Hub revision and planner revision under an immediate SQLite transaction. Capacity/rename/removal updates preserve concurrent edits and require explicit unseating on table removal. Partner-join guards now treat populated Hub resources as existing plans.
+
+Scoped links are unguessable, hashed in the token table and encrypted for owner copying/optional notification delivery. Every live read/write/download rechecks expiry, revocation, wedding suspension and access. Contact selection is explicit; medical/access fields, private family notes and financial records are excluded from every shared view and day pack. Recipient writes are restricted to confirming the shown content hash and completing jobs assigned to their specific link. Anonymous GETs do not acknowledge a plan. Change notifications are deduplicated, and obsolete/revoked messages are filtered by the worker. Private-only edits do not change the public hash. Edit and recipient rate limits are separate per account/link rather than shared across all weddings behind the proxy.
+
+Admin additions expose only coarse stage/activity/access/support metadata. No private Hub records or guest data are returned through admin. Existing support restrictions remain intact. Ready is a couple decision with explicit review of flagged checks, not a claim that suppliers approved timings. Downloads are clearly dated snapshots and cannot be recalled after saving.
+
+Verification includes former regressions, new isolation/concurrency/revocation/acknowledgement/seating/export cases, served mobile browser journeys and rendered PDF inspection. No live couple records, real SMTP sends, Docker build or TrueNAS deployment were used in this workspace.
+
 ## v1.0.8 — reviewed against the updated booking-connected repository
 
 Started from GitHub main fb104285944eaf7e6e25d737a449ba8079679315, rather than the older v1.0.6 workspace. Reviewed machine authentication/opt-in, the shared create_couple_invitation/welcome_email path, request fingerprint/idempotency mapping, status following resends, exact wedding+30 expiry and the non-root Docker permissions repair. All preserved. The personal booking repository was not modified.

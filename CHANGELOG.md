@@ -1,3 +1,9 @@
+## 1.1.0 — Wedding Day Hub, seating and Couple Journey, 17 October 2026
+
+Add wedding-day activities/arrivals, assigned responsibilities, deterministic final checks, per-recipient scoped links, content-specific acknowledgements, change notices, optional deduplicated email updates, revocation and dated PDF/offline HTML day packs. Add a visual seating layout with round/long tables, capacities, desktop drag/drop, keyboard moves and phone assignment controls. Existing guest table labels remain authoritative and can be imported. Add a privacy-conscious admin Couple Journey dashboard with broad stages, activity/access signals and existing invitation/access/payment actions.
+
+Preserve existing wedding JSON, optimistic partner saves, invitation/booking APIs, payment settings, source permissions and old handovers. Partner joining now protects populated Hub data too. Add a backup/image rollback deployment script. ReportLab is the only new production dependency.
+
 ## 1.0.8 — approved invitations and manual preview, 16 October 2026
 
 Use the approved Ivory Digital / Built by Weddings By Mark white-and-sage email design, with distinct complimentary and trial wording, a real setup button, accurate access information and a plain-text fallback. Add read-only admin previews, per-couple subject/heading/message/sign-off editing, mandatory re-preview after UI edits and review before resending. Keep a snapshot with each invitation; replacement links are generated only at send time. Preserve the v1.0.7 booking contract and permissions repair. Select booking email by its invitation record rather than its formerly fixed subject.

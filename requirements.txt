@@ -4,3 +4,4 @@ Pillow>=11.3,<13
 cryptography>=44,<49
 qrcode==8.2
 tzdata>=2025.2,<2028
+reportlab>=4.4,<5

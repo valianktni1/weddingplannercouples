@@ -21,8 +21,9 @@ from .core import connect, initialise, config, digest, cipher, valid_totp, empty
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
 from .invitation_mail import invitation_email
+from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.0.8'
+VERSION='1.1.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -110,6 +111,7 @@ def create_app(test_config=None):
         cur=db().execute('UPDATE weddings SET state=?,revision=revision+1 WHERE id=? AND revision=?',
             (json.dumps(s),w['id'],expected))
         if not cur.rowcount: abort(409,description='Your partner or an RSVP changed the plan. Reload before saving so nobody’s changes are lost.')
+        hub_notify(w['id'])
 
     @app.before_request
     def before():
@@ -129,6 +131,8 @@ def create_app(test_config=None):
         g.session=dict(row) if row else new_session()
         if g.session['user_id']:
             g.user=db().execute('SELECT * FROM users WHERE id=?',(g.session['user_id'],)).fetchone()
+            if g.user and g.user['role']=='couple' and request.method=='GET' and request.path in ['/app','/api/state','/hub','/api/hub']:
+                db().execute('INSERT INTO hub_meta(wedding_id,last_active) SELECT wedding_id,? FROM members WHERE user_id=? ON CONFLICT(wedding_id) DO UPDATE SET last_active=excluded.last_active WHERE coalesce(last_active,0)<?',(time.time(),g.user['id'],time.time()-300))
         db().commit()
         if request.method in ('POST','PUT','PATCH','DELETE') and request.path!='/api/stripe/webhook':
             value=request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
@@ -380,7 +384,7 @@ def create_app(test_config=None):
             previous=db().execute('SELECT w.* FROM weddings w JOIN members m ON m.wedding_id=w.id WHERE m.user_id=?',(u['id'],)).fetchone()
             if previous:
                 old=json.loads(previous['state'])
-                if previous['id']==target['id'] or old['ready'] or any(old['names']) or old['date'] or old['budget'] is not None or old['priorities'] or old['day']!=empty_state()['day'] or any(old[key] for key in ['suppliers','payments','tasks','guests','groups','events','notes']) or previous['slug'] or db().execute('SELECT 1 FROM uploads WHERE wedding_id=?',(previous['id'],)).fetchone() or db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(previous['id'],)).fetchone():
+                if previous['id']==target['id'] or old['ready'] or any(old['names']) or old['date'] or old['budget'] is not None or old['priorities'] or old['day']!=empty_state()['day'] or any(old[key] for key in ['suppliers','payments','tasks','guests','groups','events','notes']) or previous['slug'] or any(db().execute('SELECT 1 FROM '+table+' WHERE wedding_id=?',(previous['id'],)).fetchone() for table in ['hub_events','hub_jobs','hub_tables','hub_shares']) or db().execute('SELECT 1 FROM uploads WHERE wedding_id=?',(previous['id'],)).fetchone() or db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(previous['id'],)).fetchone():
                     raise ValueError('This account already has wedding plans. No plans were removed. Sign in to review them and contact Ivory Digital before combining accounts.')
                 db().execute('DELETE FROM members WHERE user_id=?',(u['id'],))
                 if not db().execute('SELECT 1 FROM members WHERE wedding_id=?',(previous['id'],)).fetchone():
@@ -579,7 +583,7 @@ def create_app(test_config=None):
         couples=[]
         for w in db().execute('SELECT * FROM weddings ORDER BY created DESC'):
             s=json.loads(w['state']);emails=[r['email'] for r in db().execute('SELECT email FROM users JOIN members m ON m.user_id=users.id WHERE m.wedding_id=?',(w['id'],))]
-            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'published':bool(json.loads(w['site']).get('published')),'invitation_pending':bool(db().execute('SELECT 1 FROM tokens t JOIN users u ON u.id=t.user_id WHERE t.wedding_id=? AND t.kind="welcome" AND u.verified=0',(w['id'],)).fetchone())})
+            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'journey':hub_journey(db(),w,s),'published':bool(json.loads(w['site']).get('published')),'invitation_pending':bool(db().execute('SELECT 1 FROM tokens t JOIN users u ON u.id=t.user_id WHERE t.wedding_id=? AND t.kind="welcome" AND u.verified=0',(w['id'],)).fetchone())})
         usage=shutil.disk_usage(app.config['DATA_DIR'])
         backups=list(Path(app.config['BACKUP_DIR']).glob('planner-*.tar.gz'))
         deliveries=[dict(r) for r in db().execute('SELECT id,to_address,subject,status,attempts,last_error,created FROM mail ORDER BY created DESC LIMIT 30')]
@@ -1097,5 +1101,6 @@ def create_app(test_config=None):
                 db().execute('UPDATE weddings SET access_kind="Paid",access_until=max(access_until,?) WHERE id=?',(terms['access_until'],p['wedding_id']))
                 audit('Stripe payment confirmed',p['wedding_id'])
         db().execute('INSERT INTO webhook_events VALUES(?,?)',(eid,time.time()));return jsonify(ok=True)
+    hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
     return app
 

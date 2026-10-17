@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.0.8
+# Ivory Digital Wedding Planner — v1.1.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -343,3 +343,62 @@ Preview / resend invitation opens the same editor for a pending invitation, reta
 The booking connection from v1.0.7 is retained. Automatic requests use the approved complimentary standard with no manual approval step. Its booking identifier, authentication, idempotency, status endpoints and exact wedding+30-day expiry are unchanged. Personal manual edits do not change the standard or other couples. The booking app's existing 30-minute scheduling delay remains controlled in the booking app. No booking app update or key rotation is needed for this planner change.
 
 The only storage migration adds a blank-by-default mail.html_body column; legacy queued email and all existing records remain intact. Docker's non-root code permission fix is retained. Update only the planner using its usual backup/pull/build/recreate steps and verify /healthz returns 1.0.8.
+
+
+## Wedding Day Hub, table plan and Couple Journey — v1.1.0
+
+### Where to find the new features
+
+Couples: Our wedding → Open our Wedding Day Hub, or the Wedding Day Hub / Our table plan links above the planner. Admin: Couple journey in the admin menu. All existing sections, exports and shared saves remain available.
+
+### Wedding Day Hub
+
+Main ceremony, meal and photo timings come from Our day. Add activities, supplier arrivals, locations and instructions in Our timeline. Each added activity has an explicit audience: Couple only by default, all timeline links, or one supplier/team role. Timing checks identify missing details, morning/travel clashes, photo/meal overlap, coverage and group-estimate issues, missing contacts/arrivals, outstanding guest replies, due balances and seating issues. These are checks against entered data, not supplier approvals, live traffic or sunset predictions.
+
+Who’s doing what lets couples create private jobs or assign a job to an existing private-link recipient. That person sees only their own assigned jobs and may mark them done. Other parts of the shared plan are read-only. Couple-side edits use both the existing planner revision and the Hub revision; stale edits are rejected with a reload message, preserving form input. Completed jobs are separate from the normal planning checklist.
+
+Mark our plan ready is the couple’s own confirmation. Outstanding checks must be explicitly reviewed first; planning changes return the plan to review. A revoked/expired recipient assigned to a job is flagged for reassignment.
+
+### Private sharing
+
+Create a link for a named photographer/video supplier, venue, wedding-party member or coordinator. Choose sections, selected supplier contact records and an expiry date; then preview the recipient’s sections before creating the link. Banks, budgets, payment records, private family notes and guest dietary/access details are excluded. Guest sharing is limited to names, table, day/evening and reply status. Instructions explicitly assigned to a shared activity or job are visible to that chosen audience.
+
+Anyone holding the private link can view/confirm its sections and complete jobs assigned to it, so send it only to the intended person. No separate supplier account is required. Links can be copied again from Private sharing, revoked or replaced. A link cannot outlast the couple’s editing access; suspension or expiry blocks live views, acknowledgements and downloads. Previously downloaded files cannot be recalled.
+
+Recipients confirm a content-specific version. Changed timing and section notices appear when they return, and the live page checks for changes every 30 seconds while visible. A stale page cannot confirm a later version. The couple sees who has confirmed the current version. Optional recipient email updates must be explicitly enabled; notifications are deduplicated, and obsolete/revoked notifications are cancelled before sending. Private-note or budget changes do not create a public change notice.
+
+### Visual seating planner
+
+Create named round or long tables with capacities, drag their handles to arrange the room, use arrow keys or edit room positions. On desktop, guests can be dragged onto a table. On phones, choose the table beside a guest and press Assign. Entered capacity limits are enforced; declined guests cannot be assigned new seats. Waiting replies remain clearly marked.
+
+Assignments use the existing guest.table field, so Guests & photos and old venue handovers stay in sync. Import existing table labels preserves them and leaves capacity marked for confirmation. Renaming a table updates its assigned guests atomically. Removing a table requires an explicit choice to return its guests to the unseated list. Guest/table changes from another partner are protected by shared revisions. Download the CSV table list or a role-specific PDF.
+
+### Day packs and offline access
+
+Download a readable PDF for printing or a self-contained offline HTML snapshot. The couple copy includes their timeline, contacts, photo groups, jobs and seating. Role copies include that role’s timeline, relevant photo groups/seating and jobs assigned to recipients with that role. For the exact sections/jobs/contact selection of one person, download through their private link. Every snapshot states when it was made and that it will not update. No private family notes, finances or guest health/access details are included. Offline copies contain no sign-in tokens, acknowledgement forms or scripts.
+
+### Admin Couple Journey
+
+Stages: Invited → Joined → Getting started → Actively planning → Ready for the day → Archived. These are broad account/setup signals, not a score or a view into private planning. Ready is the couple’s confirmation. Last opened is recorded only when a signed-in couple opens their planner/Hub, at most once every five minutes. Existing activity before the update is shown as not recorded yet. Admin can filter stages, expiring/ended access, unaccepted invitations and active support permissions, then use existing invitation preview, access and payment actions. Private notes, guest details, supplier plans and financial breakdowns are not added to admin responses.
+
+### Update and rollback
+
+The v1.0.7 booking API, its 30-minute scheduler contract, exact wedding+30-day access, v1.0.8 email templates and all connection keys are preserved. No booking app update is needed. Storage changes are additive Hub tables; the original wedding JSON shape is unchanged. No existing plans, guest assignments or payments are rewritten during migration. Non-root Docker code permissions remain fixed. ReportLab is an added production dependency for PDF generation; test-only dependencies are in requirements-dev.txt.
+
+In a TrueNAS root shell, from the existing clean checkout:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only)
+bash scripts/deploy-day-hub.sh
+```
+
+The script backs up the current data, tags the currently running image for rollback, prints a rollback command for both planner services, builds the web image once, recreates web/worker and checks version 1.1.0. It does not change any other Docker app. Keep the printed rollback command. The older image ignores the additive Hub tables; new Hub URLs will be unavailable during an image rollback, while stored data remains intact.
+
+Developer checks:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest -q
+node tests/test_merge.cjs
+```
