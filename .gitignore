@@ -5,6 +5,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+.deps/
+.pytest-tmp/
 data/
 backups/
 *.sqlite3*

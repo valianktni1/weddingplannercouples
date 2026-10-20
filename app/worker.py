@@ -126,7 +126,7 @@ def deliver(db,settings,now=None,secret=None):
             db.execute('UPDATE mail SET status="cancelled",last_error=NULL WHERE id=?',(row['id'],));db.commit();continue
         try:
             send_email(settings,secret,row['to_address'],row['subject'],body,row['id'],**({'html_body':row['html_body']} if row['html_body'] else {}))
-            db.execute('UPDATE mail SET status="sent",attempts=attempts+1,last_error=NULL WHERE id=?',(row['id'],))
+            db.execute('UPDATE mail SET status="sent",attempts=attempts+1,accepted_at=?,last_error=NULL WHERE id=?',(time.time(),row['id']))
         except Exception as exc:
             attempts=row['attempts']+1
             db.execute('UPDATE mail SET status=?,attempts=?,next_attempt=?,last_error=? WHERE id=?',

@@ -8,7 +8,35 @@ import secrets
 import sqlite3
 import struct
 import time
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Local Windows development; the NAS uses flock.
+    import msvcrt
+    from contextlib import contextmanager
+
+    @contextmanager
+    def file_lock(handle):
+        handle.seek(0)
+        if not handle.read(1):
+            handle.write(' ')
+            handle.flush()
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def file_lock(handle):
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -62,8 +90,7 @@ def initialise(data_dir):
     (root / 'files').mkdir(exist_ok=True)
     # Gunicorn workers and the scheduler can start together. Publish the secret
     # only after the complete value has been written; never rotate an existing key.
-    with (root / 'initialise.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with (root / 'initialise.lock').open('a+') as lock, file_lock(lock):
         secret_file = root / 'app-secret'
         if not secret_file.exists():
             temporary=root / ('secret-'+secrets.token_hex(8)+'.tmp')
@@ -81,6 +108,10 @@ def initialise(data_dir):
         db.executescript(HUB_SCHEMA)
         if 'html_body' not in {r['name'] for r in db.execute('PRAGMA table_info(mail)')}:
             db.execute("ALTER TABLE mail ADD COLUMN html_body TEXT NOT NULL DEFAULT ''")
+        if 'accepted_at' not in {r['name'] for r in db.execute('PRAGMA table_info(mail)')}:
+            db.execute('ALTER TABLE mail ADD COLUMN accepted_at REAL')
+        if 'verified_at' not in {r['name'] for r in db.execute('PRAGMA table_info(users)')}:
+            db.execute('ALTER TABLE users ADD COLUMN verified_at REAL')
         columns={r['name'] for r in db.execute('PRAGMA table_info(weddings)')}
         if 'site_revision' not in columns:
             db.execute('ALTER TABLE weddings ADD COLUMN site_revision INTEGER NOT NULL DEFAULT 0')

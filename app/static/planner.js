@@ -20,7 +20,7 @@ const outstanding=()=>data.payments.filter(p=>remaining(p)>0).sort((a,b)=>(a.due
 const supplierName=p=>data.suppliers.find(s=>s.id===p.supplier)?.name||'Supplier';
 function updateSaveIndicator(){
 const bar=root.querySelector('#ip-save');if(!bar)return;
-bar.textContent=saveFailed?'Not saved — your unsaved copy is retained':pendingSaves?'Saving… '+pendingSaves+' change'+(pendingSaves===1?'':'s'):'Saved to your shared planner · Access ends '+server.access_until;
+bar.textContent=window.ivoryPreview?'Preview only · sample data':saveFailed?'Not saved — your unsaved copy is retained':pendingSaves?'Saving… '+pendingSaves+' change'+(pendingSaves===1?'':'s'):'Saved to your shared planner · Access ends '+server.access_until;
 const recovery=root.querySelector('#ip-save-error');if(recovery)recovery.hidden=!saveFailed;
 }
 function save(message='Changes saved.'){
@@ -41,7 +41,7 @@ saveQueue=saveQueue.then(async()=>{
  }catch(err){saveFailed=true;lastSaveError=err;status.textContent=err.message+' Your unsaved plan is available below.';root.querySelector('#ip-save-error-text').textContent=status.textContent;}
 }).finally(()=>{pendingSaves--;updateSaveIndicator()});return saveQueue;
 }
-function mutate(fn,message){if(readonly||saveFailed){error(readonly?'Access has ended. You can still view and export your plan.':'Your last change has not saved. Use the recovery options above first.');return}const before=ivoryMerge.clone(data);fn();undoState={before,after:ivoryMerge.clone(data)};draftDirty=false;save(message);render();status.textContent='Saving your changes…'}
+function mutate(fn,message){if(readonly||saveFailed){error(window.ivoryPreview?'This preview is read only. No changes were saved.':readonly?'Access has ended. You can still view and export your plan.':'Your last change has not saved. Use the recovery options above first.');return}const before=ivoryMerge.clone(data);fn();undoState={before,after:ivoryMerge.clone(data)};draftDirty=false;save(message);render();status.textContent='Saving your changes…'}
 function error(text){status.setAttribute('role','alert');status.textContent=text}
 function open(html){const slot=root.querySelector('#ip-extra');slot.hidden=false;slot.innerHTML=html+`<div style="margin-top:16px">${btn('Cancel','cancel')}</div>`;slot.querySelector('input,select,textarea')?.focus()}
 function navigate(p){if(draftDirty&&!confirm('Leave this unfinished form? Your typed changes have not been saved.'))return;draftDirty=false;page=p;nav.classList.remove('menu-open');root.querySelector('.mobile-menu').setAttribute('aria-expanded','false');render()}
