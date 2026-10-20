@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% set title = 'Couple experience preview' %}
+{% block head %}
+<script id="preview-state" type="application/json">{{ preview_state|tojson }}</script>
+<script src="/static/merge.js" defer></script>
+<script src="/static/couple_preview.js?v={{ version }}" defer></script>
+<script src="/static/planner.js?v={{ version }}" defer></script>
+{% endblock %}
+{% block content %}
+<div class="notice" role="status"><strong>Administrator preview · sample plan</strong> — This is the couple planner interface with sample data. Their private plans and files are hidden. Changes and emails are blocked. <a href="/ivoryadmin">Back to admin</a></div>
+<div class="topbar"><button class="mobile-menu" type="button" data-action="menu" aria-expanded="false" aria-controls="ip-nav">Menu · Our wedding</button><div class="actions"><span class="tag">{{ access }} until {{ until }}</span><button type="button" id="buy-access" disabled>Upgrade access</button></div></div>
+<div id="ip-status" role="status" aria-live="polite"></div>
+<div class="shell"><nav id="ip-nav" aria-label="Wedding planner preview"></nav><main id="ip-main"><p>Loading sample wedding…</p></main></div>
+{% endblock %}

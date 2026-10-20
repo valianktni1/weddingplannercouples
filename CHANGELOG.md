@@ -60,3 +60,7 @@ Corrected the prototype’s stale next-payment display, hidden overspend, deadli
 
 Public sign-ups and checkout are deliberately closed until configured. Actual DNS/TLS, email credentials, Stripe credentials and TrueNAS runtime checks remain installation tasks.
 
+## 1.2.0 — invitation visibility and recovery checks, 20 October 2026
+
+Show dated invitation stages and next actions in admin, distinguishing mail-server acceptance from a couple joining. Add a System health view for worker activity, failed mail, backup freshness and free space. Add a read-only "View as couple" view using the real planner interface with sample data, without exposing private plans or permitting writes. Let a couple sign in again in a new tab and retry an unsaved plan, checking account identity and partner conflicts before writing. Add a disposable archive restore test that boots the recovered application and checks referenced files; the update script runs it before restarting the live stack. Schema migration only adds nullable event timestamps.
+

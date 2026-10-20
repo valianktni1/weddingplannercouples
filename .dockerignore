@@ -5,4 +5,7 @@ backups
 tests
 __pycache__
 .pytest_cache
+.pytest-tmp
+.deps
+.venv
 *.zip

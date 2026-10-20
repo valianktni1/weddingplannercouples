@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.1.1
+# Ivory Digital Wedding Planner — v1.2.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -419,3 +419,16 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The script makes a planner data backup, preserves the running image, prints an exact rollback command, builds the shared image once, recreates only this planner’s two services and checks version 1.1.1. The schema addition is compatible with the previous version. No changes to ports, datasets, SMTP settings or other applications are required.
+
+## Update to v1.2.0
+
+After v1.2.0 is on the `main` branch, run from the TrueNAS root shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v120.sh
+```
+
+The script backs up live data, retains the previous image and prints rollback instructions. It builds the new image and restores the latest archive into a temporary directory inside a separate container with no network and no live data mount. It checks database integrity, referenced couple files and application startup before recreating the planner services. If that check fails, the running services are left alone. The restore test confirms recovery of the archive available on the NAS at update time; keep off-server copies separately.
+
+Admin now shows dated invitation stages, the next action, System health and a read-only **View as couple** preview. The preview uses sample plan data so private couple entries remain hidden. An SMTP acceptance timestamp means the mail server accepted the message; it does not prove inbox delivery. Older invitation records may have no acceptance or join timestamp until a new event occurs.

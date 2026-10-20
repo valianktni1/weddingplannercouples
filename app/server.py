@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.1.1'
+VERSION='1.2.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -181,6 +181,9 @@ def create_app(test_config=None):
     def health():
         d=connect(app.config['DATABASE']);d.execute('SELECT 1').fetchone();d.close()
         return jsonify(status='ok',version=VERSION)
+    @app.get('/api/session')
+    def session_status():
+        return jsonify(authenticated=bool(g.user),role=g.user['role'] if g.user else None,csrf=g.session['csrf'])
     @app.get('/robots.txt')
     def robots(): return 'User-agent: *\nDisallow: /\n',200,{'Content-Type':'text/plain'}
     @app.get('/')
@@ -214,7 +217,7 @@ def create_app(test_config=None):
         consumed=db().execute('UPDATE tokens SET used=1 WHERE hash=? AND used=0 AND expires>?',(row['hash'],time.time()))
         if not consumed.rowcount: abort(400,description='This verification link was already used.')
         was_verified=db().execute('SELECT verified FROM users WHERE id=?',(row['user_id'],)).fetchone()['verified']
-        db().execute('UPDATE users SET verified=1 WHERE id=?',(row['user_id'],))
+        db().execute('UPDATE users SET verified=1,verified_at=? WHERE id=?',(time.time(),row['user_id']))
         if not was_verified:
             until=(date.today()+timedelta(days=config(db())['trial_days'])).isoformat()
             db().execute('UPDATE weddings SET access_until=max(access_until,?) WHERE access_kind="Trial" AND id IN (SELECT wedding_id FROM members WHERE user_id=?)',(until,row['user_id']))
@@ -389,7 +392,7 @@ def create_app(test_config=None):
                 db().execute('DELETE FROM members WHERE user_id=?',(u['id'],))
                 if not db().execute('SELECT 1 FROM members WHERE wedding_id=?',(previous['id'],)).fetchone():
                     db().execute('DELETE FROM weddings WHERE id=?',(previous['id'],))
-            uid=u['id'];db().execute('UPDATE users SET verified=1 WHERE id=?',(uid,))
+            uid=u['id'];db().execute('UPDATE users SET verified=1,verified_at=coalesce(verified_at,?) WHERE id=?',(time.time(),uid))
         else:
             if not password_ok(password): raise ValueError('Use a password of at least 12 characters.')
             uid=secrets.token_hex(16);db().execute('INSERT INTO users(id,email,password,verified,created) VALUES(?,?,?,1,?)',(uid,t['email'],generate_password_hash(password),time.time()))
@@ -577,18 +580,42 @@ def create_app(test_config=None):
     @app.get('/ivoryadmin')
     @auth(admin=True)
     def admin_page(): return render_template('admin.html')
+    @app.get('/ivoryadmin/couples/<wid>/preview')
+    @auth(admin=True)
+    def admin_couple_preview(wid):
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
+        if not w or db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,)).fetchone(): abort(404)
+        actual=json.loads(w['state'])
+        # Use a fresh sample plan. An admin preview must not expose private
+        # guest, supplier, payment or note data or gain couple write access.
+        sample=empty_state();sample['names']=actual['names'];sample['date']=actual['date'];sample['ready']=actual['ready']
+        email=db().execute('SELECT u.email FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? ORDER BY u.created LIMIT 1',(wid,)).fetchone()
+        preview_state={'state':sample,'revision':0,'account_email':email['email'] if email else '',
+            'access_until':w['access_until'],'readonly':True}
+        return render_template('couple_preview.html',preview_state=preview_state,access=w['access_kind'],until=w['access_until'])
     @app.get('/api/admin')
     @auth(admin=True)
     def admin_data():
         couples=[];cancelled=[]
         for w in db().execute('SELECT * FROM weddings ORDER BY created DESC'):
             s=json.loads(w['state']);emails=[r['email'] for r in db().execute('SELECT email FROM users JOIN members m ON m.user_id=users.id WHERE m.wedding_id=?',(w['id'],))]
-            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'journey':hub_journey(db(),w,s),'published':bool(json.loads(w['site']).get('published')),'invitation_pending':bool(db().execute('SELECT 1 FROM tokens t JOIN users u ON u.id=t.user_id WHERE t.wedding_id=? AND t.kind="welcome" AND u.verified=0',(w['id'],)).fetchone())})
+            invitee=db().execute('SELECT u.id,u.verified,u.verified_at FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND EXISTS(SELECT 1 FROM tokens t WHERE t.wedding_id=m.wedding_id AND t.user_id=u.id AND t.kind="welcome") ORDER BY u.created LIMIT 1',(w['id'],)).fetchone()
+            mail_history=db().execute("SELECT m.status,m.created,m.accepted_at,m.next_attempt,m.last_error FROM mail m JOIN tokens t ON m.dedupe=('welcome:' || t.hash) WHERE t.wedding_id=? ORDER BY m.created DESC LIMIT 10",(w['id'],)).fetchall() if invitee else []
+            mail=mail_history[0] if mail_history else None
+            invitation=None
+            if invitee:
+                joined=bool(invitee['verified'])
+                raw=mail['status'] if mail else 'missing'
+                label='Joined' if joined else 'Awaiting couple' if raw=='sent' else 'Queued' if raw in ('queued','retry') else 'Needs attention'
+                action='Open couple journey' if joined else 'Preview / resend invitation' if raw in ('failed','cancelled','missing') else 'Wait for the couple to use their setup link' if raw=='sent' else 'Check email settings and worker status' if raw=='retry' else 'Wait for the email worker'
+                invitation={'status':label,'queued_at':mail['created'] if mail else None,'accepted_at':mail['accepted_at'] if mail else None,'joined_at':invitee['verified_at'],'mail_status':raw,'next_attempt':mail['next_attempt'] if raw=='retry' else None,'last_error':mail['last_error'] if mail else None,'next_action':action,'history':[dict(m) for m in mail_history]}
+            couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'journey':hub_journey(db(),w,s),'published':bool(json.loads(w['site']).get('published')),'invitation_pending':bool(invitee and not invitee['verified']),'invitation':invitation})
             cancellation=db().execute('SELECT cancelled FROM cancelled_couple_invitations WHERE wedding_id=?',(w['id'],)).fetchone()
             if cancellation:
                 cancelled.append({**couples.pop(),'cancelled_at':cancellation['cancelled']})
         usage=shutil.disk_usage(app.config['DATA_DIR'])
         backups=list(Path(app.config['BACKUP_DIR']).glob('planner-*.tar.gz'))
+        newest=max(backups,key=lambda p:p.stat().st_mtime) if backups else None
         deliveries=[dict(r) for r in db().execute('SELECT id,to_address,subject,status,attempts,last_error,created FROM mail ORDER BY created DESC LIMIT 30')]
         history=[dict(r) for r in db().execute('SELECT actor,action,wedding_id,created FROM audit ORDER BY id DESC LIMIT 100')]
         grants=[dict(r) for r in db().execute('SELECT * FROM support WHERE expires>?',(time.time(),))]
@@ -600,8 +627,13 @@ def create_app(test_config=None):
             c=next((c for c in couples if c['id']==p['wedding_id']),{})
             paypal_payments.append({**paypal_details(p),'wedding_id':p['wedding_id'],'names':c.get('names',''),'email':c.get('email',''),'transaction_id':p['transaction_id']})
         settings=config(db());public_settings={k:v for k,v in settings.items() if k not in ('smtp_password_encrypted','wbm_booking_key_hash')}
+        heartbeat=settings.get('worker_heartbeat');failed=db().execute('SELECT count(*) n FROM mail WHERE status="failed"').fetchone()['n']
+        health={'worker':{'ok':bool(heartbeat and time.time()-heartbeat<180),'last_seen':heartbeat,'action':'Check the planner worker container and its logs; queued email and backups need the worker.'},
+            'email':{'ok':failed==0 and smtp_ready(settings),'failed':failed,'action':'Open Email & reminders, check failed messages and SMTP settings, then retry or resend the affected invitation.'},
+            'backup':{'ok':bool(newest and time.time()-newest.stat().st_mtime<48*3600),'latest':newest.name if newest else None,'completed_at':newest.stat().st_mtime if newest else None,'action':'Check the worker logs and backup volume, then run an isolated restore test.'},
+            'storage':{'ok':usage.free>=max(1024**3,usage.total//20),'free':usage.free,'total':usage.total,'action':'Free space on the planner data volume or expand it before uploads and backups fail.'}}
         return jsonify(invitation_default_until=access_end(settings),couples=couples,cancelled_invitations=cancelled,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
-            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
+            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':heartbeat,'health':health})
     def invitation_ready():
         settings=config(db())
         if not smtp_ready(settings): raise ValueError('Save and test your email settings before sending a couple invitation.')
@@ -784,7 +816,7 @@ def create_app(test_config=None):
         db().execute('UPDATE tokens SET used=1 WHERE user_id=? OR wedding_id=?',(u['id'],wid))
         db().execute('DELETE FROM sessions WHERE user_id=? OR pending=?',(u['id'],u['id']))
         audit('Unaccepted couple invitation cancelled; removed from active list',wid)
-        return jsonify(ok=True,message='Invitation cancelled and removed from the active list. Its setup links no longer work. Emails already delivered cannot be recalled.')
+        return jsonify(ok=True,message='Invitation cancelled and removed from the active list. Its setup links no longer work. Emails already accepted by the mail server cannot be recalled.')
 
     @app.post('/api/admin/couples/<wid>/restore-invitation')
     @auth(admin=True)
@@ -814,7 +846,7 @@ def create_app(test_config=None):
         if request.form.get('accept_terms')!='yes': return form('Please read and accept the terms and privacy notice.'),400
         db().execute('BEGIN IMMEDIATE')
         consumed=db().execute('UPDATE tokens SET used=1 WHERE hash=? AND used=0 AND expires>?',(t['hash'],time.time()))
-        updated=db().execute('UPDATE users SET password=?,verified=1 WHERE id=? AND verified=0',(generate_password_hash(password),u['id']))
+        updated=db().execute('UPDATE users SET password=?,verified=1,verified_at=? WHERE id=? AND verified=0',(generate_password_hash(password),time.time(),u['id']))
         if not consumed.rowcount or not updated.rowcount: abort(409,description='This invitation has already been accepted. Please sign in.')
         db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind IN ("welcome","verify","reset")',(u['id'],))
         if w['access_kind']=='Trial':
@@ -908,7 +940,7 @@ def create_app(test_config=None):
             message=delivery_error(exc)
             db().execute('UPDATE mail SET status="failed",attempts=1,last_error=? WHERE id=?',(message,mid));db().commit()
             return jsonify(error=message,delivery_id=mid),400
-        db().execute('UPDATE mail SET status="sent",attempts=1 WHERE id=?',(mid,));db().commit()
+        db().execute('UPDATE mail SET status="sent",attempts=1,accepted_at=? WHERE id=?',(time.time(),mid));db().commit()
         return jsonify(ok=True,status='sent',delivery_id=mid,message='Accepted by the email server. Check your admin inbox and spam folder.')
     @app.get('/api/admin/support/<wid>')
     @auth(admin=True)

@@ -20,7 +20,7 @@ const outstanding=()=>data.payments.filter(p=>remaining(p)>0).sort((a,b)=>(a.due
 const supplierName=p=>data.suppliers.find(s=>s.id===p.supplier)?.name||'Supplier';
 function updateSaveIndicator(){
 const bar=root.querySelector('#ip-save');if(!bar)return;
-bar.textContent=saveFailed?'Not saved — your unsaved copy is retained':pendingSaves?'Saving… '+pendingSaves+' change'+(pendingSaves===1?'':'s'):'Saved to your shared planner · Access ends '+server.access_until;
+bar.textContent=window.ivoryPreview?'Preview only · sample data':saveFailed?'Not saved — your unsaved copy is retained':pendingSaves?'Saving… '+pendingSaves+' change'+(pendingSaves===1?'':'s'):'Saved to your shared planner · Access ends '+server.access_until;
 const recovery=root.querySelector('#ip-save-error');if(recovery)recovery.hidden=!saveFailed;
 }
 function save(message='Changes saved.'){
@@ -41,7 +41,22 @@ saveQueue=saveQueue.then(async()=>{
  }catch(err){saveFailed=true;lastSaveError=err;status.textContent=err.message+' Your unsaved plan is available below.';root.querySelector('#ip-save-error-text').textContent=status.textContent;}
 }).finally(()=>{pendingSaves--;updateSaveIndicator()});return saveQueue;
 }
-function mutate(fn,message){if(readonly||saveFailed){error(readonly?'Access has ended. You can still view and export your plan.':'Your last change has not saved. Use the recovery options above first.');return}const before=ivoryMerge.clone(data);fn();undoState={before,after:ivoryMerge.clone(data)};draftDirty=false;save(message);render();status.textContent='Saving your changes…'}
+async function retryUnsavedSave(){
+  if(!saveFailed)return;
+  await saveQueue;
+  const session=await fetch('/api/session',{credentials:'same-origin'}).then(r=>r.json());
+  if(!session.authenticated||session.role!=='couple')throw Error('Sign in to your couple account in the new tab, then return here and choose Retry save.');
+  document.querySelector('meta[name="csrf-token"]').content=session.csrf;
+  const latest=await ivory.api('/api/state');
+  if(latest.account_email!==server.account_email)throw Error('A different couple account is signed in. Download the unsaved copy and return to the original account before retrying.');
+  let merged;
+  try{merged=ivoryMerge.merge(acknowledged,data,latest.state)}
+  catch(e){throw Error('Your partner changed the same details. Download your unsaved copy before reloading and compare the two versions. Nothing was overwritten.')}
+  const result=await ivory.api('/api/state',{method:'PUT',body:{state:merged,revision:latest.revision}});
+  data=result.state||merged;revision=result.revision;acknowledged=ivoryMerge.clone(data);intentShadow=ivoryMerge.clone(data);
+  saveFailed=false;lastSaveError=null;updateSaveIndicator();if(!draftDirty)render();status.textContent='Your unsaved plan is now saved.';
+}
+function mutate(fn,message){if(readonly||saveFailed){error(window.ivoryPreview?'This preview is read only. No changes were saved.':readonly?'Access has ended. You can still view and export your plan.':'Your last change has not saved. Use the recovery options above first.');return}const before=ivoryMerge.clone(data);fn();undoState={before,after:ivoryMerge.clone(data)};draftDirty=false;save(message);render();status.textContent='Saving your changes…'}
 function error(text){status.setAttribute('role','alert');status.textContent=text}
 function open(html){const slot=root.querySelector('#ip-extra');slot.hidden=false;slot.innerHTML=html+`<div style="margin-top:16px">${btn('Cancel','cancel')}</div>`;slot.querySelector('input,select,textarea')?.focus()}
 function navigate(p){if(draftDirty&&!confirm('Leave this unfinished form? Your typed changes have not been saved.'))return;draftDirty=false;page=p;nav.classList.remove('menu-open');root.querySelector('.mobile-menu').setAttribute('aria-expanded','false');render()}
@@ -97,7 +112,7 @@ root.addEventListener('change',e=>{if(e.target.closest('#ip-extra')||['f-weekly'
 root.addEventListener('click',async e=>{
 const b=e.target.closest('button');if(!b)return;const a=b.dataset.action,k=b.dataset.id;
 if(b.dataset.page){navigate(b.dataset.page);return}if(b.dataset.date){selectedDate=b.dataset.date;render();return}
-if(a==='recover-download'){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='our-wedding-unsaved.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return}if(a==='recover-reload'){if(!confirm('Reload the latest saved plan? Download your unsaved copy first if you want to keep it.'))return;saveFailed=false;draftDirty=false;location.reload();return}if(a==='menu'){nav.classList.toggle('menu-open');b.setAttribute('aria-expanded',nav.classList.contains('menu-open'));return}
+if(a==='recover-download'){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='our-wedding-unsaved.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return}if(a==='recover-retry'){try{await retryUnsavedSave()}catch(e){error(e.message)}return}if(a==='recover-reload'){if(!confirm('Reload the latest saved plan? Download your unsaved copy first if you want to keep it.'))return;saveFailed=false;draftDirty=false;location.reload();return}if(a==='menu'){nav.classList.toggle('menu-open');b.setAttribute('aria-expanded',nav.classList.contains('menu-open'));return}
 if(a==='theme'){data.theme=root.classList.contains('dark')?'light':'dark';root.classList.toggle('dark');b.textContent=root.classList.contains('dark')?'Light mode':'Dark mode';save();return}
 if(a==='welcome'){navigate('welcome');return}if(a==='start'){page='setup';step=1;render();return}
 if(a==='setup-back'){if(draftDirty&&!confirm('Go back without saving this step?'))return;draftDirty=false;step--;render();return}
@@ -132,7 +147,7 @@ if(a==='finish'){open(`<h2>Finish wedding planning?</h2><p>Planning reminders wi
 if(a.startsWith('remove-')){const type=a.slice(7),list={supplier:data.suppliers,payment:data.payments,task:data.tasks,guest:data.guests,group:data.groups,event:data.events}[type];removeEntity(type,list.find(x=>x.id===k));return}
 if(a==='confirm-remove'){const type=b.dataset.type;if(type==='supplier'&&data.payments.some(p=>p.supplier===k&&p.paid>0))return error('This supplier has recorded payments. Keep the booking for your records, or clear those records deliberately before removing it.');if(type==='payment'&&data.payments.find(p=>p.id===k).paid>0)return error('This instalment has a paid record. Set it back to £0 before removing it.');mutate(()=>{const prop={supplier:'suppliers',payment:'payments',task:'tasks',guest:'guests',group:'groups',event:'events'}[type];data[prop]=data[prop].filter(x=>x.id!==k);if(type==='supplier')data.payments=data.payments.filter(p=>p.supplier!==k)},'Removed. Undo is available in Our settings.');return}
 });
-const shell=root.querySelector('.shell'),saved=document.createElement('div');saved.id='ip-save';saved.className='saved';root.insertBefore(saved,shell);const recovery=document.createElement('section');recovery.id='ip-save-error';recovery.className='notice';recovery.hidden=true;recovery.innerHTML='<p id="ip-save-error-text"></p><div class="actions"><button type="button" data-action="recover-download">Download unsaved copy</button><button type="button" data-action="recover-reload">Reload latest plan</button></div>';root.insertBefore(recovery,shell);
+const shell=root.querySelector('.shell'),saved=document.createElement('div');saved.id='ip-save';saved.className='saved';root.insertBefore(saved,shell);const recovery=document.createElement('section');recovery.id='ip-save-error';recovery.className='notice';recovery.hidden=true;recovery.innerHTML='<p id="ip-save-error-text"></p><div class="actions"><button type="button" data-action="recover-download">Download unsaved copy</button><a class="button" href="/login" target="_blank" rel="noopener">Sign in in a new tab</a><button type="button" data-action="recover-retry">Retry save</button><button type="button" data-action="recover-reload">Reload latest plan</button></div>';root.insertBefore(recovery,shell);
 const media=typeof matchMedia==='function'?matchMedia('(prefers-color-scheme: dark)'):null;if(data.theme==='dark'||data.theme==='system'&&media?.matches)root.classList.add('dark');root.querySelector('[data-theme-toggle]').textContent=root.classList.contains('dark')?'Light mode':'Dark mode';
 render();
 })();
