@@ -90,3 +90,16 @@ def test_isolated_restore_rejects_archive_path_escape(tmp_path):
     with pytest.raises(ValueError, match='unsafe path'):
         restore(archive, target)
     assert not (tmp_path / 'escape').exists()
+
+
+def test_session_refresh_reports_identity_for_safe_retry(app):
+    visitor = app.test_client()
+    anonymous = visitor.get('/api/session').json
+    assert anonymous['authenticated'] is False
+    assert anonymous['role'] is None
+    assert anonymous['csrf']
+    admin = prepared(app)
+    current = admin.get('/api/session').json
+    assert current['authenticated'] is True
+    assert current['role'] == 'admin'
+    assert current['csrf']

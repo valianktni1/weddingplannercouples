@@ -181,6 +181,9 @@ def create_app(test_config=None):
     def health():
         d=connect(app.config['DATABASE']);d.execute('SELECT 1').fetchone();d.close()
         return jsonify(status='ok',version=VERSION)
+    @app.get('/api/session')
+    def session_status():
+        return jsonify(authenticated=bool(g.user),role=g.user['role'] if g.user else None,csrf=g.session['csrf'])
     @app.get('/robots.txt')
     def robots(): return 'User-agent: *\nDisallow: /\n',200,{'Content-Type':'text/plain'}
     @app.get('/')
