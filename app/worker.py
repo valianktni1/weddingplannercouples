@@ -134,9 +134,9 @@ def deliver(db,settings,now=None,secret=None):
         db.commit()
 
 def prune_tokens(db,now):
-    # Retain an unaccepted welcome record so an expired invitation can be resent
-    # even after normal token housekeeping. It remains unusable after expiry.
-    db.execute('DELETE FROM tokens WHERE expires<? AND NOT(kind="welcome" AND used=0)',(now-86400*7,))
+    # Retain welcome provenance for unverified users, including cancelled/restored
+    # invitations. Used or expired links remain unusable; resend issues a new link.
+    db.execute('DELETE FROM tokens WHERE expires<? AND NOT(kind="welcome" AND (used=0 OR EXISTS(SELECT 1 FROM users u WHERE u.id=tokens.user_id AND u.verified=0)))',(now-86400*7,))
 
 def run():
     secret=initialise(DATA);BACKUPS.mkdir(parents=True,exist_ok=True)

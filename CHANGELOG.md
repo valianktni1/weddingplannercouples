@@ -1,3 +1,9 @@
+## 1.1.1 — cancel and restore unaccepted invitations, 20 October 2026
+
+Add a named confirmation to cancel unaccepted admin invitations from Couples & access or Couple journey. Remove cancelled entries from active lists/counts, disable old links, revoke sessions and stop queued welcome emails. Add a separate Cancelled invitations section with confirmed restoration; restoring sends nothing and old links stay disabled until an explicit preview/resend creates a new link. Protect joined accounts and any payment history, retain the audit trail and booking idempotency mapping, and keep invitation provenance through token housekeeping. No permanent deletion, email redesign, SMTP settings or other app changes.
+
+Add additive migration, cancellation/restore/auth/CSRF/mail/booking regression tests and a backup/rollback deployment script.
+
 ## 1.1.0 — Wedding Day Hub, seating and Couple Journey, 17 October 2026
 
 Add wedding-day activities/arrivals, assigned responsibilities, deterministic final checks, per-recipient scoped links, content-specific acknowledgements, change notices, optional deduplicated email updates, revocation and dated PDF/offline HTML day packs. Add a visual seating layout with round/long tables, capacities, desktop drag/drop, keyboard moves and phone assignment controls. Existing guest table labels remain authoritative and can be imported. Add a privacy-conscious admin Couple Journey dashboard with broad stages, activity/access signals and existing invitation/access/payment actions.

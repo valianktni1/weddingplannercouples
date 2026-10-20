@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.1.0
+# Ivory Digital Wedding Planner — v1.1.1
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -402,3 +402,20 @@ python3 -m pip install -r requirements-dev.txt
 python3 -m pytest -q
 node tests/test_merge.cjs
 ```
+
+## Cancel an unaccepted admin invitation (v1.1.1)
+
+Open **Couples & access**, find the couple and select **Cancel invitation**. Check the name and email, tick the confirmation and choose **Cancel invitation & remove from list**. The same action is available from Couple journey.
+
+Cancellation removes the invitation from active lists and counts, suspends its account, invalidates existing setup/recovery/partner links, revokes its sessions and cancels queued/retrying welcome emails. Already delivered or in-flight emails cannot be recalled; their old setup links stop working. This is reversible cancellation, not permanent data erasure. Accepted accounts, self-registered accounts, multi-member accounts and invitations with any payment request/history cannot be cancelled here. Use the existing access controls to review those records.
+
+Expand **Cancelled invitations** at the bottom of Couples & access to restore a record. Restoration removes the suspension and returns it to the active list without sending email or reviving old links. Then use **Preview / resend invitation** to review the message and send a fresh setup link. The email remains reserved by the retained account; restore it rather than creating a duplicate invitation. Existing booking identifiers remain reserved too: an automatic retry returns the same cancelled record and does not send another email. The booking app may flag this as needing attention; deliberate preview/resend in planner admin remains the recovery route.
+
+Deploy from the TrueNAS root shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-cancel-invitations.sh
+```
+
+The script makes a planner data backup, preserves the running image, prints an exact rollback command, builds the shared image once, recreates only this planner’s two services and checks version 1.1.1. The schema addition is compatible with the previous version. No changes to ports, datasets, SMTP settings or other applications are required.

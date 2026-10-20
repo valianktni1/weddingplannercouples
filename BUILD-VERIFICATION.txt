@@ -1,3 +1,12 @@
+Ivory Wedding Planner v1.1.1 — invitation cancellation, 20 October 2026
+
+153 backend tests passed: all 144 existing cases plus 9 cancellation cases. Verified active-list removal, setup/recovery/partner token revocation, posted stale welcome forms, queued-mail cancellation, worker stale-mail checks, idempotent repeated cancellation, restore without email, dead old links after restore, preview/resend with a fresh accepted link, token housekeeping, additive reinitialisation, protection for accepted/self-registered accounts/payment history, admin-only access, CSRF and booking replay deduplication/status.
+Admin JavaScript DOM workflow passed using jsdom: named cancellation confirmation, checkbox guard, keep invitation, active/archive visibility, restore checkbox, no implicit email and accepted-account controls. This was an isolated DOM test, not a real mailbox or production browser test.
+5 partner merge scenarios passed. JavaScript syntax, Python compilation and deployment shell syntax passed.
+No real email, payment, production data or TrueNAS deployment was used. Docker build/runtime remains a NAS deployment check. Existing email deliverability investigation is separate and unresolved. The deploy helper preserves a data backup and previous image and checks version 1.1.1.
+
+Earlier verification (historical):
+
 Ivory Wedding Planner v1.1.0 — 17 October 2026
 
 144 backend cases verified: all 121 prior regressions plus 23 new Hub cases. The final full run passed 143 cases; the subsequent targeted Hub run passed all 23 including the added per-account rate isolation test. Covered ownership/CSRF, unchanged state schema, read-only scoped previews, audience filtering/escaping, partner concurrency, seating capacity/rename/delete/import, cross-wedding isolation, assigned-job writes, stale confirmation, change notices, expiry/revocation/suspension/access, optional email deduplication/cancellation, profile PDF/offline privacy, ready/admin metadata, malformed input rollback, CSV formula safety, preservation of Hub work during partner joins and private-only changes not leaking into public notices.

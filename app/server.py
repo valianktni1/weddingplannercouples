@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.1.0'
+VERSION='1.1.1'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -580,10 +580,13 @@ def create_app(test_config=None):
     @app.get('/api/admin')
     @auth(admin=True)
     def admin_data():
-        couples=[]
+        couples=[];cancelled=[]
         for w in db().execute('SELECT * FROM weddings ORDER BY created DESC'):
             s=json.loads(w['state']);emails=[r['email'] for r in db().execute('SELECT email FROM users JOIN members m ON m.user_id=users.id WHERE m.wedding_id=?',(w['id'],))]
             couples.append({'id':w['id'],'names':' & '.join(s['names']) or 'Setup incomplete','email':', '.join(emails),'wedding':s['date'],'access':w['access_kind'],'until':w['access_until'],'suspended':bool(w['suspended']),'stage':s['stage'],'journey':hub_journey(db(),w,s),'published':bool(json.loads(w['site']).get('published')),'invitation_pending':bool(db().execute('SELECT 1 FROM tokens t JOIN users u ON u.id=t.user_id WHERE t.wedding_id=? AND t.kind="welcome" AND u.verified=0',(w['id'],)).fetchone())})
+            cancellation=db().execute('SELECT cancelled FROM cancelled_couple_invitations WHERE wedding_id=?',(w['id'],)).fetchone()
+            if cancellation:
+                cancelled.append({**couples.pop(),'cancelled_at':cancellation['cancelled']})
         usage=shutil.disk_usage(app.config['DATA_DIR'])
         backups=list(Path(app.config['BACKUP_DIR']).glob('planner-*.tar.gz'))
         deliveries=[dict(r) for r in db().execute('SELECT id,to_address,subject,status,attempts,last_error,created FROM mail ORDER BY created DESC LIMIT 30')]
@@ -597,7 +600,7 @@ def create_app(test_config=None):
             c=next((c for c in couples if c['id']==p['wedding_id']),{})
             paypal_payments.append({**paypal_details(p),'wedding_id':p['wedding_id'],'names':c.get('names',''),'email':c.get('email',''),'transaction_id':p['transaction_id']})
         settings=config(db());public_settings={k:v for k,v in settings.items() if k not in ('smtp_password_encrypted','wbm_booking_key_hash')}
-        return jsonify(invitation_default_until=access_end(settings),couples=couples,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
+        return jsonify(invitation_default_until=access_end(settings),couples=couples,cancelled_invitations=cancelled,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':config(db()).get('worker_heartbeat')})
     def invitation_ready():
         settings=config(db())
@@ -615,6 +618,8 @@ def create_app(test_config=None):
         state=empty_state();state.update(names=[n.strip() for n in names],email=email,date=day)
         return state,kind,until
     def pending_invitee(wid):
+        if db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,)).fetchone():
+            abort(409,description='This invitation was cancelled. Restore it from Cancelled invitations before previewing or resending.')
         u=db().execute('SELECT u.* FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND u.verified=0 AND EXISTS(SELECT 1 FROM tokens t WHERE t.user_id=u.id AND t.kind="welcome" AND t.wedding_id=m.wedding_id)',(wid,)).fetchone()
         w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
         if not u or not w: raise ValueError('This invitation was already accepted or the account was not created by invitation.')
@@ -691,6 +696,8 @@ def create_app(test_config=None):
         return jsonify(ok=True,ready=bool(smtp_ready(settings) and settings['terms_text'].strip() and settings['privacy_text'].strip()),version=VERSION)
 
     def booking_invitation_status(row):
+        if db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(row['wedding_id'],)).fetchone():
+            return {'booking_id':row['booking_id'],'wedding_id':row['wedding_id'],'status':'cancelled','access_until':None}
         user=db().execute('SELECT verified FROM users WHERE id=?',(row['user_id'],)).fetchone()
         # Follow a deliberate admin resend, without sending a second email here.
         delivery=db().execute("SELECT m.status FROM mail m JOIN tokens t ON m.dedupe=('welcome:' || t.hash) WHERE t.user_id=? AND t.kind='welcome' ORDER BY m.created DESC LIMIT 1",(row['user_id'],)).fetchone()
@@ -748,6 +755,50 @@ def create_app(test_config=None):
         rate('admin-resend-invite',20,3600,per_ip=False)
         row,w=pending_invitee(wid);body=json_body()
         welcome_email(row['id'],wid,row['email'],body.get('invitation_email'),body.get('preview_hash'));audit('Couple invitation resent',wid);return jsonify(ok=True)
+
+    def cancellable_invitation(wid):
+        w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
+        if not w: abort(404)
+        members=db().execute('SELECT u.* FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=?',(wid,)).fetchall()
+        if len(members)!=1 or members[0]['role']!='couple' or members[0]['verified']:
+            abort(409,description='Only an unaccepted invitation can be cancelled or restored. Existing couple accounts were not changed.')
+        if not db().execute('SELECT 1 FROM tokens WHERE wedding_id=? AND user_id=? AND kind="welcome"',(wid,members[0]['id'])).fetchone():
+            abort(409,description='This account was not created by invitation. Nothing was changed.')
+        if db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(wid,)).fetchone():
+            abort(409,description='This invitation has payment history or a payment request. Review it through Manage access instead.')
+        return w,members[0]
+
+    @app.post('/api/admin/couples/<wid>/cancel-invitation')
+    @auth(admin=True)
+    def admin_cancel_invitation(wid):
+        if json_body().get('confirmed') is not True: raise ValueError('Confirm that you want to cancel this invitation.')
+        rate('admin-cancel-invite',50,3600,per_ip=False)
+        db().execute('BEGIN IMMEDIATE')
+        if db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,)).fetchone():
+            return jsonify(ok=True,message='This invitation is already cancelled.')
+        w,u=cancellable_invitation(wid)
+        db().execute('INSERT INTO cancelled_couple_invitations VALUES(?,?)',(wid,time.time()))
+        db().execute('UPDATE weddings SET suspended=1 WHERE id=?',(wid,))
+        # Capture welcome-mail relationships before revoking all account links.
+        db().execute("UPDATE mail SET status='cancelled',last_error=NULL WHERE status IN ('queued','retry') AND dedupe IN (SELECT 'welcome:' || hash FROM tokens WHERE wedding_id=? AND kind='welcome')",(wid,))
+        db().execute('UPDATE tokens SET used=1 WHERE user_id=? OR wedding_id=?',(u['id'],wid))
+        db().execute('DELETE FROM sessions WHERE user_id=? OR pending=?',(u['id'],u['id']))
+        audit('Unaccepted couple invitation cancelled; removed from active list',wid)
+        return jsonify(ok=True,message='Invitation cancelled and removed from the active list. Its setup links no longer work. Emails already delivered cannot be recalled.')
+
+    @app.post('/api/admin/couples/<wid>/restore-invitation')
+    @auth(admin=True)
+    def admin_restore_invitation(wid):
+        if json_body().get('confirmed') is not True: raise ValueError('Confirm that you want to restore this invitation.')
+        rate('admin-restore-invite',50,3600,per_ip=False)
+        db().execute('BEGIN IMMEDIATE')
+        if not db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,)).fetchone():
+            abort(409,description='This invitation is not cancelled. Find it in the active couple list.')
+        cancellable_invitation(wid)
+        db().execute('DELETE FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,))
+        db().execute('UPDATE weddings SET suspended=0 WHERE id=?',(wid,))
+        audit('Cancelled invitation restored for review; no email sent',wid)
+        return jsonify(ok=True,message='Invitation restored. No email was sent and old links remain disabled. Use Preview / resend invitation to review and send a new setup link.')
     @app.route('/welcome/<value>',methods=['GET','POST'])
     def welcome(value):
         t=token_row(value,'welcome')
@@ -777,6 +828,8 @@ def create_app(test_config=None):
         body=json_body();kind=body.get('access');until=body.get('until');reason=str(body.get('reason','')).strip()
         w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
         if not w: abort(404)
+        if db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,)).fetchone():
+            abort(409,description='Restore this invitation from Cancelled invitations before changing its access.')
         if kind not in ['Trial','Complimentary','Manual extension','Suspended'] or not date_valid(until,False) or not reason: raise ValueError('Choose access, an end date and a reason.')
         paid_dates=[json.loads(r['terms']).get('access_until','') for r in db().execute('SELECT terms FROM purchases WHERE wedding_id=? AND status="paid"',(wid,))]
         history_exists=db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(wid,)).fetchone()

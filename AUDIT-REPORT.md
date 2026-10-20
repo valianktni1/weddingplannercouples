@@ -1,3 +1,11 @@
+## v1.1.1 — invitation cancellation audit
+
+Built on main 74dbeceda72bd09443e352edad11b5f47eccf40e. Add one reversible cancellation table; existing users, weddings, state, finances, audit and booking mappings are retained. Admin cancellation and restoration require authentication, CSRF and explicit confirmation. Immediate transactions recheck one unverified couple member and invitation provenance, and refuse any payment history/request. Cancellation and welcome acceptance cannot both succeed for the same live token: cancellation consumes every account/wedding token; welcome acceptance checks token consumption within its own immediate transaction. A stale preview/resend or access edit cannot reactivate a cancelled invitation.
+
+Cancel removes records from active admin lists, suspends access, revokes sessions and marks queued/retrying welcome mail cancelled. Existing worker validation rejects consumed tokens. SMTP work already in flight or delivered cannot be recalled, but its revoked setup URL cannot be used. Restoration deliberately sends nothing and does not revive old links; explicit preview/resend creates the new URL. Welcome provenance is retained for unverified users through token pruning so late restoration/resend remains possible. Booking integration replay returns the same cancelled record, not a new invitation. Personal booking app read-only inspection confirmed this state goes to its existing attention handling; its repository was not changed.
+
+153 backend tests, admin DOM workflow, merge and syntax checks passed. No production records or external messages were used. No claim is made that the separate spam-delivery issue is resolved.
+
 ## v1.1.0 — coordination, seating and admin journey audit
 
 Built on main 658f3ce2f5bc17fd3811581632ec7b95a02f9e5f (v1.0.8). Read the personal booking app's planner_integration.py and verified its existing readiness/status contract does not pin the planner version. The booking app repository was not changed. Existing invitation templates, mail transport, connection mapping, exact wedding+30 expiry, payment flows and Docker permission fix are preserved.
