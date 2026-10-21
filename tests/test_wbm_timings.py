@@ -38,3 +38,19 @@ def test_stale_revision_and_lease_block_sending(app):
     assert c.post('/api/wbm-timings',json=payload,headers=headers(c)).status_code==409
     db=database(app);db.execute('UPDATE wbm_timing_links SET checked_at=?',(time.time()-601,));db.commit();db.close()
     assert c.get('/api/wbm-timings').json=={'linked':False}
+
+def test_backup_restores_pending_timings_without_delivery(app,tmp_path):
+    from pathlib import Path
+    from app.worker import backup
+    from scripts.test_restore import restore
+    linked(app);c=login(app);v=c.get('/api/wbm-timings').json
+    payload={'answers':{'day_contact':'Example contact','_template_revision':'fixture-v1'},'confirmed':True,'revision':v['revision'],'hub_revision':v['hub_revision']}
+    response=c.post('/api/wbm-timings',json=payload,headers=headers(c));assert response.status_code==201
+    archive=backup(Path(app.config['DATA_DIR']),tmp_path/'archives')
+    restored=tmp_path/'restored';restored.mkdir()
+    assert restore(archive,restored)[0]>=1
+    import sqlite3
+    with sqlite3.connect(restored/'planner.sqlite3') as db:
+        row=db.execute('SELECT id,status,payload FROM wbm_timing_submissions').fetchone()
+        assert row[0]==response.json['id'] and row[1]=='queued'
+        assert json.loads(row[2])['answers']['day_contact']=='Example contact'
