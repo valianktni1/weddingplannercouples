@@ -53,3 +53,5 @@ body{margin:0;padding:20px;background:#f6f3ef;font-family:Arial,sans-serif}#ivor
 #ivory-planner .wbm-timing-dialog [data-wbm-error]{color:var(--p-error);white-space:pre-wrap}
 #ivory-planner .wbm-timing-dialog [hidden]{display:none!important}
 @media(max-width:600px){#ivory-planner .wbm-timing-dialog{padding:16px}#ivory-planner .wbm-timing-dialog .actions>button{flex:1 1 auto}}
+
+#ivory-planner .backup-panels code,#ivory-planner .backup-recovery code{overflow-wrap:anywhere;white-space:normal}

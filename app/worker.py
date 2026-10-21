@@ -140,6 +140,10 @@ def prune_tokens(db,now):
 
 def run():
     secret=initialise(DATA);BACKUPS.mkdir(parents=True,exist_ok=True)
+    from .admin_backups import recover_interrupted_backup
+    startup=connect(DATA/'planner.sqlite3')
+    try: recover_interrupted_backup(startup)
+    finally: startup.close()
     while True:
         db=None
         try:
@@ -149,6 +153,8 @@ def run():
             prune_tokens(db,time.time())
             schedule(db,settings,now);db.commit();deliver(db,settings,secret=secret)
             db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('worker_heartbeat',json.dumps(time.time())));db.commit()
+            from .admin_backups import process_requested_backup
+            process_requested_backup(db,DATA,BACKUPS)
             local=now.astimezone(ZoneInfo(settings['timezone']));stamp=local.date().isoformat()
             last=db.execute('SELECT value FROM settings WHERE key="last_backup_day"').fetchone()
             if local.strftime('%H:%M')>=settings['backup_time'] and (not last or json.loads(last['value'])!=stamp):
@@ -165,4 +171,5 @@ def run():
         time.sleep(30)
 
 if __name__=='__main__': run()
+
 
