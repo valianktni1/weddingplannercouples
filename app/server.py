@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.3.0'
+VERSION='1.3.1'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -634,6 +634,9 @@ def create_app(test_config=None):
             'storage':{'ok':usage.free>=max(1024**3,usage.total//20),'free':usage.free,'total':usage.total,'action':'Free space on the planner data volume or expand it before uploads and backups fail.'}}
         return jsonify(invitation_default_until=access_end(settings),couples=couples,cancelled_invitations=cancelled,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':heartbeat,'health':health})
+    from .admin_backups import register_admin_backups
+    register_admin_backups(app,db,auth,audit,rate)
+
     def invitation_ready():
         settings=config(db())
         if not smtp_ready(settings): raise ValueError('Save and test your email settings before sending a couple invitation.')
