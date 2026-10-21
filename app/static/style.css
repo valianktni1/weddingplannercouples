@@ -42,3 +42,14 @@ body{margin:0;padding:20px;background:#f6f3ef;font-family:Arial,sans-serif}#ivor
 #ivory-planner #invitation-composer textarea{resize:vertical}
 #ivory-planner #invitation-composer iframe{margin:18px 0}
 #ivory-planner #hub-main{max-width:1100px;margin:auto}#ivory-planner #hub-main>.panel,#ivory-planner .hub-public>.panel{margin:20px 0}#ivory-planner .hub-public{max-width:900px;margin:auto}#ivory-planner #hub-status:empty{display:none}#ivory-planner #hub-status{padding:16px;background:var(--p-soft);border-radius:10px}#ivory-planner #hub-extra{margin-bottom:20px}#ivory-planner #hub-room{position:relative;min-height:500px;margin:20px 0;overflow:hidden;border:2px solid var(--p-border);border-radius:12px;background-image:radial-gradient(var(--p-border) 1px,transparent 1px);background-size:20px 20px}#ivory-planner .hub-table{position:absolute;transform:translate(-50%,-50%);width:112px;min-height:114px;border:2px solid var(--p-brand);background:var(--p-surface);padding:8px;text-align:center;box-shadow:0 2px 6px #0002}#ivory-planner .hub-table.round{border-radius:30%}#ivory-planner .hub-table.long{border-radius:8px}#ivory-planner .hub-table p{margin:4px 0}#ivory-planner .hub-table-handle{touch-action:none;cursor:grab;width:100%;padding:4px;overflow-wrap:anywhere;font-weight:bold;border:0}#ivory-planner .hub-table button{font-size:16px;padding:4px 8px;min-height:40px}#ivory-planner .hub-recipient-preview{margin:20px 0;background:var(--p-soft)}#ivory-planner #hub-guest-list .field{margin:0}#ivory-planner .hub-public .panel{overflow-wrap:anywhere}#ivory-planner #hub-main .panel,#ivory-planner #hub-extra .panel{min-width:0}#ivory-planner #hub-main p,#ivory-planner #hub-main h3{overflow-wrap:anywhere}
+
+/* WBM photography preview is available only to linked couples. */
+#ivory-planner .wbm-timing-dialog{width:min(720px,calc(100vw - 16px));max-height:92dvh;overflow:auto;background:var(--p-surface);color:var(--p-text);border:1px solid var(--p-border);border-radius:12px;padding:22px;font:16px/1.5 Arial,sans-serif}
+#ivory-planner .wbm-timing-dialog::backdrop{background:#0008}
+#ivory-planner .wbm-timing-dialog fieldset{border:1px solid var(--p-border);border-radius:8px;padding:16px;margin:16px 0;min-width:0}
+#ivory-planner .wbm-timing-dialog legend{font-weight:bold}
+#ivory-planner .wbm-timing-dialog dt{font-weight:bold;margin-top:12px}
+#ivory-planner .wbm-timing-dialog dd{margin:2px 0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+#ivory-planner .wbm-timing-dialog [data-wbm-error]{color:var(--p-error);white-space:pre-wrap}
+#ivory-planner .wbm-timing-dialog [hidden]{display:none!important}
+@media(max-width:600px){#ivory-planner .wbm-timing-dialog{padding:16px}#ivory-planner .wbm-timing-dialog .actions>button{flex:1 1 auto}}

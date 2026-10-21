@@ -150,5 +150,8 @@ if(a==='confirm-remove'){const type=b.dataset.type;if(type==='supplier'&&data.pa
 const shell=root.querySelector('.shell'),saved=document.createElement('div');saved.id='ip-save';saved.className='saved';root.insertBefore(saved,shell);const recovery=document.createElement('section');recovery.id='ip-save-error';recovery.className='notice';recovery.hidden=true;recovery.innerHTML='<p id="ip-save-error-text"></p><div class="actions"><button type="button" data-action="recover-download">Download unsaved copy</button><a class="button" href="/login" target="_blank" rel="noopener">Sign in in a new tab</a><button type="button" data-action="recover-retry">Retry save</button><button type="button" data-action="recover-reload">Reload latest plan</button></div>';root.insertBefore(recovery,shell);
 const media=typeof matchMedia==='function'?matchMedia('(prefers-color-scheme: dark)'):null;if(data.theme==='dark'||data.theme==='system'&&media?.matches)root.classList.add('dark');root.querySelector('[data-theme-toggle]').textContent=root.classList.contains('dark')?'Light mode':'Dark mode';
 render();
+// The photography preview must never send an unsaved or conflicted draft.
+window.ivoryPlannerReadyForTimings=async()=>{if(!data.ready)throw new Error('Finish the short planner setup before submitting final timings.');await saveQueue;if(saveFailed||pendingSaves||draftDirty)throw new Error('Save or close your current form before reviewing final timings. Any unsaved changes are still here.');};
 })();
+
 

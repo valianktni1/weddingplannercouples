@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.2.0'
+VERSION='1.3.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -119,7 +119,7 @@ def create_app(test_config=None):
         if request.path.startswith('/static/') or request.path=='/healthz': return
         if request.path.startswith('/api/integrations/wbm/'):
             # A narrowly scoped machine credential, never an admin session.
-            request.max_content_length=4096
+            request.max_content_length=128000 if request.path.startswith('/api/integrations/wbm/timings/') else 4096
             settings=config(db());provided=request.headers.get('Authorization','')
             stored=settings.get('wbm_booking_key_hash','')
             if not stored or not provided.startswith('Bearer ') or len(provided)>200 or not hmac.compare_digest(digest(provided[7:]),stored):
@@ -725,7 +725,7 @@ def create_app(test_config=None):
     @app.get('/api/integrations/wbm/status')
     def booking_connection_status():
         settings=config(db())
-        return jsonify(ok=True,ready=bool(smtp_ready(settings) and settings['terms_text'].strip() and settings['privacy_text'].strip()),version=VERSION)
+        return jsonify(ok=True,ready=bool(smtp_ready(settings) and settings['terms_text'].strip() and settings['privacy_text'].strip()),version=VERSION,capabilities={"timings":1})
 
     def booking_invitation_status(row):
         if db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(row['wedding_id'],)).fetchone():
@@ -1186,6 +1186,9 @@ def create_app(test_config=None):
                 db().execute('UPDATE weddings SET access_kind="Paid",access_until=max(access_until,?) WHERE id=?',(terms['access_until'],p['wedding_id']))
                 audit('Stripe payment confirmed',p['wedding_id'])
         db().execute('INSERT INTO webhook_events VALUES(?,?)',(eid,time.time()));return jsonify(ok=True)
+    from .wbm_timings import register_wbm_timings
+    register_wbm_timings(app,db,auth,wedding,json_body,audit)
     hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
     return app
+
 
