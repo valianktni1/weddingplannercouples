@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.2.0
+# Ivory Digital Wedding Planner — v1.4.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -455,3 +455,18 @@ The existing `/api/integrations/wbm/` invitation/timing flow keeps its separate
 stored key hash and enabled flag. There are no schema changes in this release.
 Use the paired Dashboard source-bundle installer to back up and update both apps;
 it preserves existing env files and checks the original Booking settings afterward.
+
+## Couple interface refresh — v1.4.0
+
+The couple planner now uses the approved warm ivory/deep green design, a personal dashboard, a clear booked-cost ledger and an upcoming-dates list. Every existing planner page and action is retained. Home / Checklist / Budget provide quick mobile navigation; **More** or the header **Menu** opens all ten planner pages plus Wedding Day Hub, tables, website, documents and account access. For linked Weddings By Mark couples, the existing **Send final timings to Mark** control remains in Wedding tools, below the open menu. Sign out is inside Menu. Desktop keeps the full planner sidebar and tools.
+
+On phones the header, scrolling content, save status and bottom navigation occupy separate layout rows. The bar is never positioned over the page. Forms scroll within their own available space; the bar hides while editing a text field, and the shell uses the visual viewport height when the keyboard changes the visible area. Safe-area padding protects screen cut-outs and the home indicator. Setup temporarily hides quick navigation until the short introduction is complete. The design applies to the couple planner, Hub, website editor, documents, access page and the existing sample admin preview; public wedding websites, invitations/emails and superadmin retain their own styling.
+
+Deploy from the TrueNAS root shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v140.sh
+```
+
+The deployment helper backs up planner data, retains the previous image and environment, prints rollback instructions, builds the image once, tests a real backup in an isolated container and checks that web and worker run v1.4.0. Existing ports (30063), datasets, account credentials and application data stay in place. Physical iOS/Android keyboards still need an installation check; automated tests cover reduced viewport height, enlarged text and button clearance.

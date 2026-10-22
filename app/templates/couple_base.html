@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block theme_assets %}<link rel="stylesheet" href="/static/couple.css?v={{ version }}"><script src="/static/couple-shell.js?v={{ version }}" defer></script>{% endblock %}
+{% block body_class %}couple-page{% endblock %}
+{% block app_class %}couple-app{% endblock %}
+{% block brand_subtitle %}Built by Weddings By Mark{% endblock %}
+{% block header_account %}{% endblock %}
+{% block header_menu %}<button type="button" data-couple-menu aria-expanded="false" aria-controls="couple-menu">Menu</button>{% endblock %}
+{% block page_menu %}
+<section id="couple-menu" class="couple-menu" hidden aria-label="All your planner pages">
+  <div class="section-heading"><h2>Your planner</h2><button type="button" data-couple-close>Close menu</button></div>
+  <nav aria-label="All planner pages">
+    {% for key,label in [('home','Our wedding'),('day','Our day'),('test','Test our day'),('calendar','Calendar'),('money','Our budget'),('suppliers','Suppliers'),('guests','Guests & photos'),('tasks','Our checklist'),('final','Final plan'),('account','Our settings')] %}
+    <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>
+    {% endfor %}
+  </nav>
+  <p class="muted">Wedding tools and any final-timings controls are below this menu.</p>
+  {% if not preview_state %}<div class="menu-tools"><a href="/hub">Wedding Day Hub</a><a href="/hub#seating">Our table plan</a><a href="/website">Our wedding website</a><a href="/files">Our documents</a><a href="/upgrade">Account access</a></div>{% endif %}
+  {% if user and not preview_state %}<form class="menu-account" method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>{% endif %}
+</section>
+{% endblock %}
+{% block page_navigation %}
+<nav id="couple-dock" aria-label="Quick planner navigation">
+  <a href="/app#home" data-couple-page="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10h-6v-7H9v7H3Z"/></svg><span>Home</span></a>
+  <a href="/app#tasks" data-couple-page="tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 2 2 3-4m3 2h10M3 13l2 2 3-4m3 2h10M3 21l2-2m6 2h10"/></svg><span>Checklist</span></a>
+  <a href="/app#money" data-couple-page="money"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 7c-5-3-7 2-4 6l-2 4h7M8 12h7"/></svg><span>Budget</span></a>
+  <button type="button" data-couple-menu aria-expanded="false" aria-controls="couple-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>More</span></button>
+</nav>
+{% endblock %}

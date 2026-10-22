@@ -1,3 +1,13 @@
+## v1.4.0 — couple experience design audit
+
+Built on main 88f69e5955e56868c30a4891f278867eba8a9cf0 (v1.3.2), preserving the newer manual backup, preview/reliability and WBM timing features. Scope: presentation, couple page templates, navigation and version. No schema, account, financial calculation, SMTP or booking integration change.
+
+The couple-only theme uses open sections and an honest booked-cost ledger, existing task/payment/event data and a deterministic next-step prompt. Unknown supplier costs and overdue balances remain explicit. Every existing planner route/editor/action remains available, including rehearsal, exports, priorities, partner invitations, undo, access and the linked WBM timing dialog. The new menu links call the existing navigation guard and preserve unfinished forms when leaving is declined. Unknown header buttons are ignored by the planner action dispatcher to keep theme/Menu controls from triggering undefined-action errors.
+
+Mobile uses a finite flex shell: header, independently scrolling content, save status and navigation each take real layout space. No fixed/absolute bottom overlay or guessed padding reserve is used. Visual viewport changes and field focus adapt the shell; safe-area padding protects screen cutouts/home indicators. Desktop retains the complete sidebar. The same scoped theme applies to Hub, documents, website editor, access and sample admin preview. Public wedding websites, emails and superadmin styling remain separate.
+
+170 backend tests, served browser workflow, merge checks and syntax checks passed. Last-action geometry was measured for long timing forms and website invitation generation, including enlarged text and reduced viewport height. Light/dark mobile and desktop screenshots inspected. No production data, external email/payment, Docker build or physical phone was used. The deploy helper preserves data/image/environment, performs isolated archive restoration and checks both service versions on the NAS.
+
 ## v1.1.1 — invitation cancellation audit
 
 Built on main 74dbeceda72bd09443e352edad11b5f47eccf40e. Add one reversible cancellation table; existing users, weddings, state, finances, audit and booking mappings are retained. Admin cancellation and restoration require authentication, CSRF and explicit confirmation. Immediate transactions recheck one unverified couple member and invitation provenance, and refuse any payment history/request. Cancellation and welcome acceptance cannot both succeed for the same live token: cancellation consumes every account/wedding token; welcome acceptance checks token consumption within its own immediate transaction. A stale preview/resend or access edit cannot reactivate a cancelled invitation.

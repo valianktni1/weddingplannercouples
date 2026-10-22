@@ -1,3 +1,11 @@
+## 1.4.0 — personal couple planner design, 22 October 2026
+
+Apply the approved ivory and forest green direction to the couple experience: editorial names/countdown, one practical next step, an open budget ledger, upcoming dates and clear routes into guests, Hub and tables. Keep every existing planner page, supplier/payment/task/guest/group editor, export, rehearsal, partner save/conflict handling and WBM timing submission.
+
+Add mobile Home / Checklist / Budget / More navigation with all other pages accessible through Menu. Keep navigation in its own layout row beneath the scrolling page, hide it during text entry, react to visual viewport changes and allow phone safe areas. Preserve unfinished-form confirmation when using quick navigation. Retain the existing desktop sidebar. Scope the styling to couple pages and the existing sample preview. No data/schema, billing, SMTP, booking integration, public website or email-template change.
+
+Add served-app browser regression checks and a backup/image rollback deployment helper with isolated archive recovery before restart.
+
 ## 1.1.1 — cancel and restore unaccepted invitations, 20 October 2026
 
 Add a named confirmation to cancel unaccepted admin invitations from Couples & access or Couple journey. Remove cancelled entries from active lists/counts, disable old links, revoke sessions and stop queued welcome emails. Add a separate Cancelled invitations section with confirmed restoration; restoring sends nothing and old links stay disabled until an explicit preview/resend creates a new link. Protect joined accounts and any payment history, retain the audit trail and booking idempotency mapping, and keep invitation provenance through token housekeeping. No permanent deletion, email redesign, SMTP settings or other app changes.
