@@ -131,3 +131,6 @@ body.couple-page:has(.couple-app.dark){background:#19251f}
 #ivory-planner.couple-app #planner-install .install-actions{display:grid;gap:12px;margin-top:22px}
 #ivory-planner.couple-app #planner-install .install-actions button{width:100%;font-size:18px;min-height:52px}
 #ivory-planner.couple-app #planner-install [hidden]{display:none!important}
+
+#ivory-planner.couple-app #planner-install .install-actions a{display:flex;align-items:center;justify-content:center;text-align:center;font-size:18px;min-height:52px}
+#ivory-planner.couple-app #planner-install li{overflow-wrap:anywhere}

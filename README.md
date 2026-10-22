@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.4.1
+# Ivory Digital Wedding Planner — v1.4.2
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -490,3 +490,15 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 This uses the same fresh-release build, protected configuration backups and isolated restore rehearsal as the corrected v1.4.0 updater. It retains local Control Centre/env settings and port 30063. Actual OS installation should be checked on physical iPhone/Android after deploying; browser QA covers simulated platform/native-install events, not an App Store or OS installation.
+
+
+## Samsung Internet installation route — v1.4.2
+
+Some Samsung Internet installations of web apps show Android's older-app warning; Mark reproduced it and verified a clean install in Chrome on the same phone. The couple prompt therefore offers Open in Chrome for Samsung Internet and never invokes its native installation event. The Android browser intent contains only this site's /app address, with a same-site browser fallback; no invitation link, password, account identifier or session token is passed to the other browser. Couples may need to sign in again in Chrome. The instructions also explain how to open Chrome manually if the handoff is unavailable. Embedded Android browser guidance recommends Chrome, and other Android fallback instructions no longer send couples to Samsung Internet for installation. iPhone steps and normal Chrome installation are retained.
+
+This changes the planner's installation guidance. It cannot change Samsung's generated Android package or remove OS warnings if someone independently chooses Samsung Internet's own Install menu. No instruction asks couples to bypass security protections. A physical Samsung check of the Open in Chrome handoff remains useful after deployment; the app remains usable in the browser.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v142.sh
+```

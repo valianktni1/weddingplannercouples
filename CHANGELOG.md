@@ -1,3 +1,7 @@
+## 1.4.2 — guide Samsung Internet installs through Chrome, 22 October 2026
+
+After a reported older-Android warning in Samsung Internet and a clean Chrome installation on the same device, show Samsung users an Open in Chrome link and short instructions. Suppress native installation requests in Samsung Internet, including a defensive button-handler check. Retain Chrome/iPhone flows, Maybe later and Menu reopening. Pass only /app to Chrome, with a browser fallback and manual instructions if the handoff cannot open. Keep existing configuration-preserving backup/restore deployment checks.
+
 ## 1.4.1 — optional home-screen welcome, 22 October 2026
 
 Add a readable first-mobile-sign-in invitation to add Ivory Planner to the home screen, with Maybe later and Menu reopening. Support native installation where the browser exposes it, iPhone/Safari and Android/Samsung instructions, embedded-browser guidance, per-account/browser dismissal and standalone suppression. Supply a standalone manifest and branded PNG icons. Keep the existing setup, invitation, complimentary/trial access, sign-in and planning flows; no offline private-data cache, schema or email change. Reuse the configuration-preserving deployment and backup restore checks for v1.4.1.

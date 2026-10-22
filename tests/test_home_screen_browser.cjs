@@ -2,6 +2,7 @@ const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES+'/playwr
 const assert=require('node:assert/strict');
 const base=process.env.PLANNER_TEST_URL||'http://127.0.0.1:8765';
 const android='Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36';
+const samsung=android.replace('Chrome/138.0.0.0','SamsungBrowser/28.0 Chrome/138.0.0.0');
 const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 (async()=>{
  const args=process.env.PLANNER_TEST_LAMBDA?(await import(process.env.PLANNER_TEST_LAMBDA)).default.args:['--no-sandbox'];
@@ -51,6 +52,19 @@ const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit
   await page.locator('#planner-install:modal').waitFor();await page.locator('[data-install-later]').click();assert.deepEqual(errors,[]);await context.close();
   ({page,context,errors}=await visit(android,null,'new@example.com'));
   await page.locator('#planner-install:modal').waitFor();await page.locator('[data-install-later]').click();assert(['welcome','setup'].includes(await page.locator('#ivory-planner').getAttribute('data-planner-page')));assert.deepEqual(errors,[]);await context.close();
-  console.log('PASS: first mobile login, dismissal/reopen, Android instructions, iPhone instructions, simulated native install, standalone suppression, blocked storage, new-couple setup and button clearance.');
+  ({page,context,errors}=await visit(samsung));
+  await page.locator('#planner-install:modal').waitFor();
+  assert(await page.locator('[data-install-chrome]').isVisible());
+  assert(await page.locator('[data-install-now]').isHidden());
+  const chromeLink=await page.locator('[data-install-chrome]').getAttribute('href');
+  assert(chromeLink.startsWith('intent://'));assert(chromeLink.includes('package=com.android.chrome;'));assert(chromeLink.includes(encodeURIComponent(base+'/app')));
+  assert.match(await page.locator('#planner-install-steps').innerText(),/Open in Chrome/);
+  assert(!/Install if offered|Add page to/.test(await page.locator('#planner-install-steps').innerText()));
+  await page.evaluate(()=>{const event=new Event('beforeinstallprompt',{cancelable:true});event.prompt=()=>{window.badSamsungInstall=true};event.userChoice=Promise.resolve({outcome:'accepted'});window.dispatchEvent(event);document.querySelector('[data-install-now]').click()});
+  assert.equal(await page.evaluate(()=>window.badSamsungInstall),undefined,'Samsung native installation must never be triggered');
+  await page.locator('[data-install-chrome]').scrollIntoViewIfNeeded();
+  assert(await page.locator('[data-install-chrome]').evaluate(el=>{const b=el.getBoundingClientRect();return document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)===el}),'Chrome handoff link obstructed');
+  await page.locator('[data-install-later]').click();assert.deepEqual(errors,[]);await context.close();
+  console.log('PASS: first mobile login, dismissal/reopen, Android instructions, iPhone instructions, simulated native install, standalone suppression, blocked storage, new-couple setup, Samsung Chrome handoff/native-install suppression and button clearance.');
  }finally{if(browser)await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

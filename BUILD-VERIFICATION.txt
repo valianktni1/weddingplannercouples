@@ -1,3 +1,7 @@
+Ivory Wedding Planner v1.4.2 — Samsung install guidance, 22 October 2026
+
+Three home-screen backend/template checks passed. Ten deployment tests passed against deploy-v142.sh (Docker operations simulated). JS and shell syntax checks passed. Served Chromium home-screen regression passed, including Samsung user-agent detection, a visible and unobstructed Chrome intent link with same-site fallback, suppression of a simulated Samsung native install event, plus existing Chrome, iPhone, dismissal/reopen, standalone, blocked-storage and new-couple-setup checks. The physical Samsung-to-Chrome intent handoff was not executed here. Mark confirmed manual Chrome installation showed no warning on his phone. The previous v1.4.1 full Python suite passed 183 tests; this follow-up reruns targeted checks because application server logic is unchanged apart from its version string.
+
 Ivory Wedding Planner v1.4.1 — home-screen welcome, 22 October 2026
 
 Full Python regression suite: 183 passed, 3 subtests passed (90.03 seconds).
