@@ -1,3 +1,7 @@
+## v1.4.0 deployment compatibility follow-up
+
+Preserve local Control Centre Compose settings and environment file references. Build a fresh source snapshot with a unique image tag, retain separate service rollback images and protected environment copies, and stop before restart if backup/build/restore preparation fails. Do not reuse the older Control Centre build context.
+
 ## 1.4.0 — personal couple planner design, 22 October 2026
 
 Apply the approved ivory and forest green direction to the couple experience: editorial names/countdown, one practical next step, an open budget ledger, upcoming dates and clear routes into guests, Hub and tables. Keep every existing planner page, supplier/payment/task/guest/group editor, export, rehearsal, partner save/conflict handling and WBM timing submission.

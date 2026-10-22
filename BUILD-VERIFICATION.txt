@@ -92,3 +92,5 @@ Backup creation, archive verification, restored download isolation, unique filen
 
 Not performed: Docker image build/runtime, TrueNAS runtime, live DNS/TLS/proxy, real SMTP delivery or real Stripe Checkout. Run the README installation/pilot checklist. Public sign-ups and checkout remain closed until configured.
 
+
+Deployment compatibility follow-up, 22 October 2026: 10 deployment tests passed, including configuration/environment preservation, separate web/worker rollback images, literal dollar protection, rejection of unrelated code edits, and simulated backup/build/restore failures that leave the existing compose file and running services untouched. Shell syntax and Python compile checks passed. Docker calls were simulated in sequence tests; the actual NAS build/restore remains an installation step. No application behavior changed in this follow-up.
