@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.5.0
+# Ivory Digital Wedding Planner — v1.5.1
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -522,3 +522,15 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The updater retains local Control Centre settings, uses a fresh release image, backs up data and rehearses archive recovery before restarting web/worker. Add node tests/test_planning_journey.cjs to local validation for priority and filter logic; tests/test_planning_journey_browser.cjs exercises the served UI alongside the existing home-screen and redesign browser suites.
+
+
+## Mobile admin action buttons — v1.5.1
+
+The admin couple-journey and account action groups use full-width stacked buttons on phones, with natural word wrapping instead of splitting labels into narrow columns. Wider screens use a wrapping grid with room for each label. Apply the same admin-only rules to other main-panel action groups and standalone row controls, including backup and support controls. Keep every action label, handler, API, access rule and record intact. The stylesheet is loaded only by the authenticated admin template; couple/public layouts are unchanged.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v151.sh
+```
+
+The existing configuration-preserving updater backs up data and rehearses recovery before restarting. Refresh the admin page after deployment to load the versioned stylesheet.

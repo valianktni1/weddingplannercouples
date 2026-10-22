@@ -1,0 +1,9 @@
+/* Admin actions wrap as complete controls; never squeeze labels into columns of letters. */
+#ivory-planner.admin-app{font-size:17px;line-height:1.5}
+#ivory-planner.admin-app #sa-main .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));align-items:stretch;gap:12px;min-width:0;max-width:100%}
+#ivory-planner.admin-app #sa-main .row>.actions{flex:1 1 100%;width:100%;margin-top:12px}
+#ivory-planner.admin-app #sa-main .actions>button,#ivory-planner.admin-app #sa-main .actions>.button{width:100%;min-width:0;max-width:100%;min-height:48px;margin:0;display:flex;align-items:center;justify-content:center;flex:none;text-align:center}
+#ivory-planner.admin-app #sa-main button,#ivory-planner.admin-app #sa-main .button{white-space:normal;word-break:normal;overflow-wrap:normal;hyphens:none;line-height:1.4}
+#ivory-planner.admin-app #sa-main .row>div{min-width:0;max-width:100%}
+#ivory-planner.admin-app #sa-main .row>button,#ivory-planner.admin-app #sa-main .row>.button{flex:0 1 100%;min-height:48px}
+@media(max-width:760px){#ivory-planner.admin-app #sa-main .actions{grid-template-columns:minmax(0,1fr)}#ivory-planner.admin-app #sa-main .row>.actions{width:100%}}

@@ -1,3 +1,7 @@
+## 1.5.1 — readable mobile admin buttons, 22 October 2026
+
+Stop admin action buttons shrinking into narrow columns and inheriting arbitrary word breaks. Stack full-width actions on phones, retain a wrapping layout on larger screens, and keep normal word boundaries and comfortable tap targets. Scope the stylesheet to the admin template; preserve all actions, data and couple styling. Add admin layout/browser regression coverage and the existing backup/restore deployment process for v1.5.1.
+
 ## 1.5.0 — clearer couple workflow, 22 October 2026
 
 Retain existing functionality and give wedding-day planning a consistent build/check/review/share sequence. Prioritise overdue/near-term payments and tasks before general planning suggestions; defer meal-confirmation guidance until 60 days before the wedding. Add an optional first-steps guide with hide/reopen controls and derived progress. Add guest/household search, reply and attendance filters, result counts and a direct table-plan link. Offer home-screen installation after setup. Simplify saved/budget wording and keep expiry details in account/final/access views. Preserve dirty-form guards, current routes, partner handling, Samsung Chrome guidance, integration and all exports. Add targeted unit/browser checks and the configuration-preserving v1.5.0 deployment helper.
