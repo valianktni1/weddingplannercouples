@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.4.2
+# Ivory Digital Wedding Planner — v1.5.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -502,3 +502,23 @@ This changes the planner's installation guidance. It cannot change Samsung's gen
 cd /mnt/apps/weddingplannercouples
 (umask 022; git pull --ff-only) && bash scripts/deploy-v142.sh
 ```
+
+
+## Clearer couple journey — v1.5.0
+
+Keep all existing planner pages, actions and URLs. Label the wedding-day route consistently as Build our timings → Check our timings → Review & export → Share our day. A shared navigation strip on the day, rehearsal, final-review and Hub pages explains the sequence; the Hub retains seating, helpers, extra activities, private links and day packs. Existing unsaved-change protection applies to in-planner navigation and leaving pages.
+
+Next on your list uses entered data in a clear order: overdue unpaid instalment, overdue task, payment due within seven days, task due within seven days, missing venue, meal confirmation within 60 days of a dated wedding, earliest dated outstanding task, then other planning guidance. Paid instalments are excluded. It is guidance from recorded plans, not supplier confirmation or a payment service.
+
+An optional first-steps guide links to suppliers, payments, guests and partner invitations, with progress derived from current shared data. Placeholder supplier names from setup do not count as completed details. Couples can hide the guide or reopen it from Our settings. Dismissal is local to the account/browser; blocked storage still supports hiding it for this page session. Planning solo and not having made a payment do not block any feature.
+
+Guest search matches names and households, with combined reply/day-evening filters, visible result counts, an empty-result message and Clear filters. Filters do not change the shared guest list or the full venue export. Arrange our tables links directly to the existing seating tool. The home-screen prompt now waits for successful setup completion; secondary couple tools check readiness before automatically offering installation. Manual reopening and the Samsung-to-Chrome route remain available.
+
+Use plain budget wording and All changes saved. Keep editing-expiry details in Our settings and the existing final/export/access views, rather than repeating the expiry date in the permanent save bar. View-only status and save failures remain explicit. No database schema, payment calculation, billing, invitation integration, email or backup format change.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v150.sh
+```
+
+The updater retains local Control Centre settings, uses a fresh release image, backs up data and rehearses archive recovery before restarting web/worker. Add node tests/test_planning_journey.cjs to local validation for priority and filter logic; tests/test_planning_journey_browser.cjs exercises the served UI alongside the existing home-screen and redesign browser suites.

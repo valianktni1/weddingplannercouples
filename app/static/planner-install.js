@@ -34,8 +34,8 @@
   dialog.showModal();if(samsung){instructions();later.textContent='Maybe later'}shown=true;remember();
  }
  function close(){dialog.close();if(origin?.isConnected)origin.focus({preventScroll:true})}
- root.addEventListener('ivory:page',()=>{ready=true;open()});
- document.addEventListener('DOMContentLoaded',()=>{if(!document.getElementById('ip-main')){ready=true;open()}});
+ root.addEventListener('ivory:page',e=>{ready=!e.detail.setup;if(ready)open()});
+ document.addEventListener('DOMContentLoaded',async()=>{if(!document.getElementById('ip-main')){try{const plan=await ivory.api('/api/state');ready=!!plan.state.ready;if(ready)open()}catch{/* Keep normal planning available if this optional check fails. */}}});
  root.addEventListener('click',e=>{if(e.target.closest('[data-install-open]'))open(true)});
  later.addEventListener('click',close);
  dialog.addEventListener('cancel',remember);

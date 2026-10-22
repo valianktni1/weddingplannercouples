@@ -51,7 +51,11 @@ const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit
   ({page,context,errors}=await visit(android,()=>{Storage.prototype.getItem=()=>{throw Error('storage blocked')};Storage.prototype.setItem=()=>{throw Error('storage blocked')}}));
   await page.locator('#planner-install:modal').waitFor();await page.locator('[data-install-later]').click();assert.deepEqual(errors,[]);await context.close();
   ({page,context,errors}=await visit(android,null,'new@example.com'));
-  await page.locator('#planner-install:modal').waitFor();await page.locator('[data-install-later]').click();assert(['welcome','setup'].includes(await page.locator('#ivory-planner').getAttribute('data-planner-page')));assert.deepEqual(errors,[]);await context.close();
+  assert.equal(await page.locator('#planner-install').evaluate(d=>d.open),false,'installation must wait until setup is finished');
+  assert(['welcome','setup'].includes(await page.locator('#ivory-planner').getAttribute('data-planner-page')));
+  await page.locator('#f-nameA').fill('Alex');await page.locator('#f-nameB').fill('Sam');
+  await page.locator('[data-action="setup-next"]').click();await page.locator('[data-action="setup-next"]').click();await page.locator('[data-action="setup-next"]').click();
+  await page.locator('#planner-install:modal').waitFor();await page.locator('[data-install-later]').click();assert.equal(await page.locator('#ivory-planner').getAttribute('data-planner-page'),'home');assert.deepEqual(errors,[]);await context.close();
   ({page,context,errors}=await visit(samsung));
   await page.locator('#planner-install:modal').waitFor();
   assert(await page.locator('[data-install-chrome]').isVisible());

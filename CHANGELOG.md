@@ -1,3 +1,7 @@
+## 1.5.0 — clearer couple workflow, 22 October 2026
+
+Retain existing functionality and give wedding-day planning a consistent build/check/review/share sequence. Prioritise overdue/near-term payments and tasks before general planning suggestions; defer meal-confirmation guidance until 60 days before the wedding. Add an optional first-steps guide with hide/reopen controls and derived progress. Add guest/household search, reply and attendance filters, result counts and a direct table-plan link. Offer home-screen installation after setup. Simplify saved/budget wording and keep expiry details in account/final/access views. Preserve dirty-form guards, current routes, partner handling, Samsung Chrome guidance, integration and all exports. Add targeted unit/browser checks and the configuration-preserving v1.5.0 deployment helper.
+
 ## 1.4.2 — guide Samsung Internet installs through Chrome, 22 October 2026
 
 After a reported older-Android warning in Samsung Internet and a clean Chrome installation on the same device, show Samsung users an Open in Chrome link and short instructions. Suppress native installation requests in Samsung Internet, including a defensive button-handler check. Retain Chrome/iPhone flows, Maybe later and Menu reopening. Pass only /app to Chrome, with a browser fallback and manual instructions if the handoff cannot open. Keep existing configuration-preserving backup/restore deployment checks.

@@ -34,14 +34,14 @@ const base=process.env.PLANNER_TEST_URL||'http://127.0.0.1:8765';
  page.once('dialog',d=>d.dismiss());await page.locator('#couple-dock [data-couple-page="home"]').click();assert.equal(await page.locator('#f-budget').inputValue(),'19000');assert.equal(await page.locator('#ivory-planner').getAttribute('data-planner-page'),'money');
  // Editing hides the dock and an actual viewport reduction must retain Save.
  await page.locator('#f-budget').focus();await page.setViewportSize({width:390,height:460});await page.waitForFunction(()=>document.querySelector('#couple-dock').hidden);await clearAtBottom('[data-action="save-budget"]');
- await page.locator('[data-action="save-budget"]').click();await page.waitForFunction(()=>document.querySelector('#ip-save').textContent.startsWith('Saved'));
+ await page.locator('[data-action="save-budget"]').click();await page.waitForFunction(()=>document.querySelector('#ip-save').textContent==='All changes saved');
  assert.equal((await page.evaluate(()=>ivory.api('/api/state'))).state.budget,19000);
  await page.setViewportSize({width:390,height:844});
  // A long timings form keeps its LAST submit button above the dock.
  await page.locator('.top [data-couple-menu]').click();await page.locator('#couple-menu [data-couple-page="day"]').click();await page.locator('[data-action="edit-day"]').click();
  for(const [width,height] of [[320,844],[390,844],[736,390]]){await page.setViewportSize({width,height});await clearAtBottom('[data-action="save-day"]')}
  await page.addStyleTag({content:'#ivory-planner.couple-app{font-size:24px!important}#ivory-planner.couple-app button,#ivory-planner.couple-app input,#ivory-planner.couple-app select,#ivory-planner.couple-app textarea{font-size:24px!important}'});
- await page.setViewportSize({width:320,height:844});await clearAtBottom('[data-action="save-day"]');await page.locator('[data-action="save-day"]').click();await page.waitForFunction(()=>document.querySelector('#ip-save').textContent.startsWith('Saved'));
+ await page.setViewportSize({width:320,height:844});await clearAtBottom('[data-action="save-day"]');await page.locator('[data-action="save-day"]').click();await page.waitForFunction(()=>document.querySelector('#ip-save').textContent==='All changes saved');
  // Linked WBM controls remain reachable from Menu and the dialog stays above navigation.
  await page.setViewportSize({width:390,height:844});await page.locator('.top [data-couple-menu]').click();await page.getByRole('button',{name:'Send final timings to Mark',exact:true}).click();await page.locator('dialog[open]').waitFor();
  await page.locator('dialog button[type=submit]').scrollIntoViewIfNeeded();assert(await page.locator('dialog button[type=submit]').evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}));await page.locator('[data-wbm-close]').click();

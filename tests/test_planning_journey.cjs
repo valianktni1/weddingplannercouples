@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const {nextStep,firstSteps,filterGuests}=require('../app/static/planning-journey.js');
+const base=()=>({date:'2027-06-19',day:{venue:'Example Hall',mealConfirmed:false},tasks:[],payments:[],suppliers:[{name:'Example Hall'}],guests:[{name:'Pat'}],invite:{email:'',status:'Not invited'}});
+let s=base();s.payments=[{id:'late',amount:500,paid:100,due:'2026-10-20'}];s.tasks=[{title:'Urgent task',due:'2026-10-19',done:false}];
+assert.equal(nextStep(s,'2026-10-22').item.id,'late','overdue payment should lead');
+s.payments[0].paid=500;assert.equal(nextStep(s,'2026-10-22').kind,'task','paid instalment must drop out');
+s.tasks=[];s.payments=[{amount:500,paid:0,due:'2026-10-25'}];assert.equal(nextStep(s,'2026-10-22').urgency,'soon');
+s=base();s.tasks=[{title:'Undated',due:'',done:false},{title:'Earlier',due:'2026-12-01',done:false}];assert.equal(nextStep(s,'2026-10-22').item.title,'Earlier','real deadline before undated task');
+s=base();assert.notEqual(nextStep(s,'2026-10-22').kind,'timings','do not push meal confirmation months early');s.date='2026-11-22';assert.equal(nextStep(s,'2026-10-22').kind,'timings');
+s=base();s.day.venue='';assert.equal(nextStep(s,'2026-10-22').kind,'venue');
+s=base();s.suppliers=[{name:'Venue — details to add'}];assert.equal(firstSteps(s)[0].done,false);s.suppliers[0].name='Our venue';assert.equal(firstSteps(s)[0].done,true);s.invite={email:'partner@example.com',status:'Cancelled'};assert.equal(firstSteps(s)[3].done,false);
+const guests=[{name:'Pat & Robin',household:'Smith',rsvp:'Accepted',attendance:'Day'},{name:'Jamie',household:'Jones',rsvp:'Waiting',attendance:'Evening'},{name:'Smithson',household:'',rsvp:'Declined',attendance:'Day'}];
+assert.equal(filterGuests(guests,'SMITH').length,2);assert.equal(filterGuests(guests,'smith','Accepted','Day').length,1);assert.equal(filterGuests(guests,'','Waiting','Evening')[0].name,'Jamie');assert.equal(filterGuests(guests,'nobody').length,0);assert.equal(filterGuests(guests).length,3);
+console.log('PASS: payment/deadline priority, paid-item exclusion, 60-day timing guidance, chronological tasks, starter progress and guest filters.');

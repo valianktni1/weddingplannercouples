@@ -134,3 +134,18 @@ body.couple-page:has(.couple-app.dark){background:#19251f}
 
 #ivory-planner.couple-app #planner-install .install-actions a{display:flex;align-items:center;justify-content:center;text-align:center;font-size:18px;min-height:52px}
 #ivory-planner.couple-app #planner-install li{overflow-wrap:anywhere}
+
+#ivory-planner.couple-app .day-journey{border-top:1px solid var(--p-border);border-bottom:1px solid var(--p-border);padding:16px 0;margin:12px 0 24px}
+#ivory-planner.couple-app .day-journey>div{display:flex;flex-wrap:wrap;gap:10px}
+#ivory-planner.couple-app .day-journey p{font-size:17px;margin:8px 0 16px}
+#ivory-planner.couple-app .starter-list{list-style:none;padding:0;margin:0}
+#ivory-planner.couple-app .starter-list li{border-top:1px solid var(--p-border);padding:8px 0}
+#ivory-planner.couple-app .starter-list .planning-link{border:0;margin:0;padding:12px 0}
+#ivory-planner.couple-app .starter-list small{display:block;font-size:16px;color:var(--p-secondary)}
+#ivory-planner.couple-app .guest-filters{display:grid;grid-template-columns:2fr 1fr 1fr auto;align-items:end;gap:12px;margin:20px 0}
+@media(max-width:760px){#ivory-planner.couple-app .guest-filters{grid-template-columns:1fr 1fr}#ivory-planner.couple-app .guest-filters .field:first-child{grid-column:1/-1}#ivory-planner.couple-app .day-journey>div>*{flex:1 1 140px}}
+#ivory-planner.couple-app nav.day-journey{display:block;background:transparent;border-right:0}
+#ivory-planner.couple-app nav.day-journey p{display:block;color:var(--p-secondary)}
+#ivory-planner.couple-app nav.day-journey button{width:auto;margin:0;display:inline-flex;justify-content:center;text-align:center;border:1px solid var(--p-border)}
+#ivory-planner.couple-app nav.day-journey button.primary{border-color:var(--p-brand)}
+#ivory-planner.couple-app #couple-dock span{white-space:nowrap;word-break:normal;overflow-wrap:normal}
