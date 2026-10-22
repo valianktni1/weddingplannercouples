@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.3.1'
+VERSION='1.3.2'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -117,6 +117,10 @@ def create_app(test_config=None):
     def before():
         g.cookie=None;g.user=None
         if request.path.startswith('/static/') or request.path=='/healthz': return
+        if request.path.startswith('/api/integrations/control-centre/'):
+            from .control_centre import authorise
+            authorise()
+            return
         if request.path.startswith('/api/integrations/wbm/'):
             # A narrowly scoped machine credential, never an admin session.
             request.max_content_length=128000 if request.path.startswith('/api/integrations/wbm/timings/') else 4096
@@ -1192,6 +1196,8 @@ def create_app(test_config=None):
     from .wbm_timings import register_wbm_timings
     register_wbm_timings(app,db,auth,wedding,json_body,audit)
     hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
+    from .control_centre import register_control_centre
+    register_control_centre(app, VERSION)
     return app
 
 

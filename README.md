@@ -432,3 +432,26 @@ cd /mnt/apps/weddingplannercouples
 The script backs up live data, retains the previous image and prints rollback instructions. It builds the new image and restores the latest archive into a temporary directory inside a separate container with no network and no live data mount. It checks database integrity, referenced couple files and application startup before recreating the planner services. If that check fails, the running services are left alone. The restore test confirms recovery of the archive available on the NAS at update time; keep off-server copies separately.
 
 Admin now shows dated invitation stages, the next action, System health and a read-only **View as couple** preview. The preview uses sample plan data so private couple entries remain hidden. An SMTP acceptance timestamp means the mail server accepted the message; it does not prove inbox delivery. Older invitation records may have no acceptance or join timestamp until a new event occurs.
+
+## Read-only Control Centre summary (v1.3.2)
+
+An independent opt-in endpoint, `GET /api/integrations/control-centre/overview`,
+accepts `X-Control-Centre-Key` matching `PLANNER_CONTROL_CENTRE_KEY` (32+ characters)
+when `PLANNER_CONTROL_CENTRE_ENABLED=true`. Defaults leave it disabled. Use a new
+key shared only with Dashboard's `DASHBOARD_PLANNER_KEY`, never the Booking key.
+It cannot authorise admin, invitation or timing operations.
+
+The endpoint uses a separate SQLite connection in read-only/query-only mode and
+does not create sessions, set cookies, send email or change invitation settings.
+It returns account counts, up to five names/dates/access expiry records per queue,
+and worker status. Cancelled invitations are excluded. Current access excludes
+suspended/expired accounts and includes trials and complimentary accounts.
+Awaiting couples means welcome email queued/sent and the invitee has not joined;
+retrying, failed, cancelled or missing welcome email goes into the review queue.
+Counts and expiry use the London business date. No couple plans, guest data,
+budgets, email addresses, setup links, support grants or private notes are exposed.
+
+The existing `/api/integrations/wbm/` invitation/timing flow keeps its separate
+stored key hash and enabled flag. There are no schema changes in this release.
+Use the paired Dashboard source-bundle installer to back up and update both apps;
+it preserves existing env files and checks the original Booking settings afterward.
