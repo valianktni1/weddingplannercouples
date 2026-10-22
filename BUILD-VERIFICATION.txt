@@ -1,3 +1,9 @@
+Ivory Wedding Planner v1.4.1 — home-screen welcome, 22 October 2026
+
+Full Python regression suite: 183 passed, 3 subtests passed (90.03 seconds).
+
+Home-screen API/template checks: public manifest MIME, PNG sizes, authentication gate, prompt/menu/metadata across couple tools, exclusion from public and admin sign-in pages passed. Ten deployment tests passed against deploy-v141.sh, with Docker operations simulated. Served Chromium checks passed for first mobile sign-in, Android and iPhone guidance, native-install event simulation, dismissal/reopen, standalone suppression, blocked storage, new-couple setup, unchanged saved plan and reachable dialog actions at 320/390px including a reduced-height viewport. Existing complete couple redesign browser regression passed across all ten pages, saves, navigation, manual website invitation link, documents, Hub and linked timing dialog. Physical iPhone/Android OS installation and the actual NAS build/restore are installation checks.
+
 Ivory Wedding Planner v1.4.0 — couple interface refresh, 22 October 2026
 
 170 backend tests passed after the final template/shell changes. Existing invitation cancellation, payments, booking integration, support/privacy, WBM timing submission, manual backup and restore cases remain intact. No database or API contract change; server version only changed to 1.4.0.

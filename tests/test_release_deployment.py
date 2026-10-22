@@ -102,12 +102,13 @@ class DeploymentSequenceTests(unittest.TestCase):
         root = Path(temporary.name)
         repo = root / 'repo'
         (repo / 'scripts').mkdir(parents=True)
-        for name in ('deploy-v140.sh', 'prepare_v140_release.py'):
+        deploy_script = os.environ.get('PLANNER_DEPLOY_TEST_SCRIPT', 'deploy-v140.sh')
+        for name in (deploy_script, 'prepare_v140_release.py'):
             shutil.copy2(SCRIPT.parent / name, repo / 'scripts' / name)
         backup = root / 'backups'
         backup.mkdir()
         restore = root / 'restore'
-        script = repo / 'scripts' / 'deploy-v140.sh'
+        script = repo / 'scripts' / deploy_script
         script.write_text(script.read_text().replace('/mnt/apps/weddingplannercouples', str(repo))
                           .replace('/mnt/apps_snaps_progs/weddingplannercouplesbup', str(backup))
                           .replace('/mnt/apps_snaps_progs/weddingplannercouples-restore-test', str(restore)))

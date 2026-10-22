@@ -1,3 +1,7 @@
+## 1.4.1 — optional home-screen welcome, 22 October 2026
+
+Add a readable first-mobile-sign-in invitation to add Ivory Planner to the home screen, with Maybe later and Menu reopening. Support native installation where the browser exposes it, iPhone/Safari and Android/Samsung instructions, embedded-browser guidance, per-account/browser dismissal and standalone suppression. Supply a standalone manifest and branded PNG icons. Keep the existing setup, invitation, complimentary/trial access, sign-in and planning flows; no offline private-data cache, schema or email change. Reuse the configuration-preserving deployment and backup restore checks for v1.4.1.
+
 ## v1.4.0 deployment compatibility follow-up
 
 Preserve local Control Centre Compose settings and environment file references. Build a fresh source snapshot with a unique image tag, retain separate service rollback images and protected environment copies, and stop before restart if backup/build/restore preparation fails. Do not reuse the older Control Centre build context.

@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.4.0
+# Ivory Digital Wedding Planner — v1.4.1
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -472,3 +472,21 @@ cd /mnt/apps/weddingplannercouples
 The deployment helper preserves locally customised Compose settings and environment file references, including the Control Centre connection. It archives the checked-out Git commit into a fresh deployment-releases directory, then builds a unique shared web/worker image from that source, rather than reusing an older saved release. Local compose.yaml changes and untracked installation files are allowed; other tracked code changes stop the update. Docker Compose must support config --no-env-resolution.
 
 It backs up planner data, retains each running service image and private rollback copies of referenced environment files, prints rollback instructions, tests a real backup in an isolated container and checks that web and worker run v1.4.0. Only after those preflight checks does it atomically replace compose.yaml with equivalent JSON syntax containing the new image/build context. Both JSON and YAML are supported Compose inputs. Installation settings, env_file references, mounts and port mappings are retained; keep this local configuration out of Git. The backup directory contains private configuration and must stay protected. If deployment fails after restart, use the printed rollback command; this starts the previous images and saved environment without rebuilding. A rollback does not rewrite compose.yaml, so restore original-compose.yaml from the same private rollback directory before any later standard deployment. Existing ports (30063), datasets, account credentials and application data stay in place. Physical iOS/Android keyboards still need an installation check; automated tests cover reduced viewport height, enlarged text and button clearance.
+
+
+## Home-screen welcome — v1.4.1
+
+After their first successful mobile sign-in on this device, couples see a large optional Add to home screen dialog. This is shared by invited, complimentary, trial and partner accounts; it does not alter access or billing. It also appears for existing couples the first time they open this version on a phone. Maybe later keeps the normal setup/planning journey available. The prompt is remembered for that account in that browser, with a manual Add to home screen button in Menu. Storage-blocked browsers still work but cannot remember the choice across visits.
+
+On supporting Android browsers, the button uses the browser's native installation prompt when it becomes available. Otherwise there are browser-specific instructions, including Safari Share / Add to Home Screen / Open as Web App for iPhone, Samsung Internet, Android and embedded email/social browsers. Standalone launches suppress the prompt. Desktop visits are not automatically interrupted. Browser installation availability and wording vary; no claim of installation is made just from displaying instructions.
+
+A public manifest and 192/512px PNG brand icons configure the installed launcher to open /app in standalone mode. The normal authentication/session rules still apply, including sign-in if a separate home-screen browser session needs it. No invitation tokens, private account details or credentials enter the manifest or icons. There is no service worker or offline private-page cache; the planner requires an internet connection. Admin, public pages and read-only admin sample preview do not get the couple install prompt.
+
+Deploy in the TrueNAS root shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v141.sh
+```
+
+This uses the same fresh-release build, protected configuration backups and isolated restore rehearsal as the corrected v1.4.0 updater. It retains local Control Centre/env settings and port 30063. Actual OS installation should be checked on physical iPhone/Android after deploying; browser QA covers simulated platform/native-install events, not an App Store or OS installation.

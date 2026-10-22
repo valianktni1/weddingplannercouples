@@ -1,0 +1,17 @@
+<dialog id="planner-install" aria-labelledby="planner-install-title" aria-describedby="planner-install-intro" data-install-key="{{ user['id'] }}">
+  <img class="install-icon" src="/static/planner-icon-192.png" width="76" height="76" alt="">
+  <p class="install-eyebrow">YOUR WEDDING PLANNER</p>
+  <h2 id="planner-install-title">Your plans, one tap away</h2>
+  <p id="planner-install-intro">Add Ivory Planner to your home screen, so your wedding plans are easy to find whenever you need them.</p>
+  <p>No app store download. It’s included with your planner.</p>
+  <div id="planner-install-help" hidden tabindex="-1">
+    <h3>Add it to your home screen</h3>
+    <ol id="planner-install-steps"></ol>
+    <p>You’ll still need an internet connection. If asked, sign in with your usual planner details.</p>
+  </div>
+  <p id="planner-install-status" role="status" aria-live="polite"></p>
+  <div class="install-actions">
+    <button type="button" class="primary" data-install-now>Add to home screen</button>
+    <button type="button" data-install-later>Maybe later</button>
+  </div>
+</dialog>

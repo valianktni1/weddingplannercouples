@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block theme_assets %}<link rel="stylesheet" href="/static/couple.css?v={{ version }}"><script src="/static/couple-shell.js?v={{ version }}" defer></script>{% endblock %}
+{% block theme_assets %}<link rel="stylesheet" href="/static/couple.css?v={{ version }}"><script src="/static/couple-shell.js?v={{ version }}" defer></script>{% if user and user['role']=='couple' and not preview_state %}<link rel="manifest" href="/static/planner.webmanifest"><meta name="theme-color" content="#315744"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Ivory Planner"><link rel="apple-touch-icon" href="/static/planner-icon-192.png"><script src="/static/planner-install.js?v={{ version }}" defer></script>{% endif %}{% endblock %}
 {% block body_class %}couple-page{% endblock %}
 {% block app_class %}couple-app{% endblock %}
 {% block brand_subtitle %}Built by Weddings By Mark{% endblock %}
@@ -15,6 +15,7 @@
   </nav>
   <p class="muted">Wedding tools and any final-timings controls are below this menu.</p>
   {% if not preview_state %}<div class="menu-tools"><a href="/hub">Wedding Day Hub</a><a href="/hub#seating">Our table plan</a><a href="/website">Our wedding website</a><a href="/files">Our documents</a><a href="/upgrade">Account access</a></div>{% endif %}
+  {% if user and user['role']=='couple' and not preview_state %}<button type="button" data-install-open>Add to home screen</button>{% endif %}
   {% if user and not preview_state %}<form class="menu-account" method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>{% endif %}
 </section>
 {% endblock %}
@@ -25,4 +26,5 @@
   <a href="/app#money" data-couple-page="money"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 7c-5-3-7 2-4 6l-2 4h7M8 12h7"/></svg><span>Budget</span></a>
   <button type="button" data-couple-menu aria-expanded="false" aria-controls="couple-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>More</span></button>
 </nav>
+{% if user and user['role']=='couple' and not preview_state %}{% include 'install_prompt.html' %}{% endif %}
 {% endblock %}

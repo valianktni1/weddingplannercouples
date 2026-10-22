@@ -1,0 +1,25 @@
+{
+  "id": "/app",
+  "name": "Ivory Digital Wedding Planner",
+  "short_name": "Ivory Planner",
+  "description": "Your shared wedding plans, checklist, budget and wedding day.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ed",
+  "theme_color": "#315744",
+  "icons": [
+    {
+      "src": "/static/planner-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/planner-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
