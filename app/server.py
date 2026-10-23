@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.5.1'
+VERSION='1.6.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -1199,5 +1199,6 @@ def create_app(test_config=None):
     from .control_centre import register_control_centre
     register_control_centre(app, VERSION)
     return app
+
 
 

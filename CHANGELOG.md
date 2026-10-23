@@ -1,3 +1,10 @@
+## v1.6.0 — Botanical glass finish
+
+- Shared sage/ivory glass presentation across the planner, setup, account/auth and superadmin screens, using a local botanical background and existing dark-mode preference.
+- Keep readable opaque inputs/dialogs, reduced-transparency/forced-colour fallbacks and undecorated printing. Keep the mobile dock in its own row and the v1.5.1 admin action layout.
+- Preserve couple-selected wedding website themes, email/offline export layouts, all features and APIs. No database or integration migration.
+- Add configuration-preserving deploy-v160.sh with the existing backup/isolated restore rehearsal and rollback procedure.
+
 ## 1.5.1 — readable mobile admin buttons, 22 October 2026
 
 Stop admin action buttons shrinking into narrow columns and inheriting arbitrary word breaks. Stack full-width actions on phones, retain a wrapping layout on larger screens, and keep normal word boundaries and comfortable tap targets. Scope the stylesheet to the admin template; preserve all actions, data and couple styling. Add admin layout/browser regression coverage and the existing backup/restore deployment process for v1.5.1.
@@ -91,4 +98,5 @@ Public sign-ups and checkout are deliberately closed until configured. Actual DN
 ## 1.2.0 — invitation visibility and recovery checks, 20 October 2026
 
 Show dated invitation stages and next actions in admin, distinguishing mail-server acceptance from a couple joining. Add a System health view for worker activity, failed mail, backup freshness and free space. Add a read-only "View as couple" view using the real planner interface with sample data, without exposing private plans or permitting writes. Let a couple sign in again in a new tab and retry an unsaved plan, checking account identity and partner conflicts before writing. Add a disposable archive restore test that boots the recovered application and checks referenced files; the update script runs it before restarting the live stack. Schema migration only adds nullable event timestamps.
+
 

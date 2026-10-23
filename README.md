@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.5.1
+# Ivory Digital Wedding Planner — v1.6.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -534,3 +534,20 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The existing configuration-preserving updater backs up data and rehearses recovery before restarting. Refresh the admin page after deployment to load the versioned stylesheet.
+
+
+
+## Botanical glass finish — v1.6.0
+
+The approved sage/ivory glass design runs across the couple dashboard and every existing planner tool, guided setup, account screens, authentication and superadmin. Soft botanical branches are a local 53 KB WebP background. Cards and navigation have a restrained frosted finish; input fields and dialogs keep opaque surfaces for readability. Dark mode uses the existing system/manual preference. Reduced-transparency and forced-colour preferences have fallbacks, and printed pages do not carry the decorative background.
+
+All original pages, links, controls and handlers are retained. The bottom dock still occupies its own flex row below the scrolling mobile content; it does not become an overlay. The v1.5.1 admin button sizing remains in place. Published wedding websites retain the presentation style selected by each couple. Email templates and offline day packs keep their established layouts. There is no database migration, storage change, new account entitlement, payment change or booking integration change.
+
+In the TrueNAS root shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v160.sh
+```
+
+This updater keeps local Control Centre/environment references and the current port/datasets. It backs up and rehearses archive recovery in isolation before restarting only the planner web/worker, and prints a rollback command. Refresh the app after deployment to load the versioned stylesheet. Actual visual layout and OS/browser rendering require a mobile/desktop installation check; do not treat backend tests as proof of visual appearance.
