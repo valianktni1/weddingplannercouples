@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.6.1
+# Ivory Digital Wedding Planner — v1.6.2
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -565,3 +565,17 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 This uses the established configuration-preserving backup/isolated-restore and image rollback process. Physical-phone layout checks remain useful after deployment.
+
+
+## Returning couples and installed-app launch — v1.6.2
+
+The installed manifest still starts at /app. Expired sessions at /app go to Welcome back; signed-in couples visiting / or /login go straight to their planner. A first-party HttpOnly, SameSite=Lax navigation cookie (Secure on HTTPS installations), containing only 1 and lasting up to a year, marks a device after a successful couple sign-in or authenticated visit. It carries no email, wedding identifier or authentication authority, and does not extend the seven-day session. If cookies are cleared, a normal browser cannot identify a returning visitor until sign-in. Legacy standalone shortcuts opening / also route through /app.
+
+Couple header/footer Home links stay inside the planner. Couple sign-out opens /login, admin sign-out opens /ivoryadmin/login. New visitors still see the public information page; About the planner opens /?welcome=1 explicitly. No database or integration change.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v162.sh
+```
+
+The established updater preserves installation settings, backs up data, rehearses recovery and prints image rollback instructions. Existing couples need not reinstall the app; a sign-in/visit after updating sets the returning-device preference. Browser/OS shortcuts with independently cached addresses may still need checking on the physical phone.

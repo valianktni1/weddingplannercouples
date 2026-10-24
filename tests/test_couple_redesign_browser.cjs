@@ -54,10 +54,11 @@ const base=process.env.PLANNER_TEST_URL||'http://127.0.0.1:8765';
  await page.goto(base+'/hub#sharing');await page.locator('#hub-main h1').waitFor();
  for(const width of [320,390,736,1280]){await page.setViewportSize({width,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Hub page overflow '+width)}
  // Guided setup and the relocated sign-out control remain usable.
- await page.setViewportSize({width:390,height:844});await page.locator('.top [data-couple-menu]').click();await page.locator('#couple-menu form button').click();await page.waitForURL(base+'/');
+ await page.setViewportSize({width:390,height:844});await page.locator('.top [data-couple-menu]').click();await page.locator('#couple-menu form button').click();await page.waitForURL(base+'/login');
  await page.goto(base+'/login');await page.locator('[name=email]').fill('new@example.com');await page.locator('[name=password]').fill('test-only-long-password');await page.locator('button.primary').click();await page.locator('#f-nameA').waitFor();assert(await page.locator('#couple-dock').isHidden());
  await page.locator('#f-nameA').fill('Sam');await page.locator('#f-nameB').fill('Alex');await page.locator('[data-action=setup-next]').click();await page.getByRole('heading',{name:'What have you booked?'}).waitFor();await page.locator('[data-action=setup-next]').click();await page.getByRole('heading',{name:'What matters most to you?'}).waitFor();await page.locator('[data-action=setup-next]').click();await page.locator('.wedding-intro').waitFor();assert(await page.locator('#couple-dock').isVisible());
  assert((await page.evaluate(()=>ivory.api('/api/state'))).state.ready);
  assert.deepEqual(errors,[]);console.log('PASS: all ten planner pages, state-preserving navigation, bottom action clearance, keyboard-height viewport, enlarged text, guarded unfinished work, real budget/timing saves, manual website share link, documents, Hub, linked WBM modal, sign-out and guided setup; widths 320/390/736/768/1280 and light/dark.');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
+

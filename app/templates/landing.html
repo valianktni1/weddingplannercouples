@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% block head %}<script src="/static/planner-launch.js?v={{ version }}" defer></script>{% endblock %}
 {% block content %}
 <main class="setup">
   <h1>Plan your day. Make room to enjoy it.</h1>
@@ -28,3 +29,4 @@
   <p class="hint"><a href="/ivoryadmin">Administrator sign-in</a></p>
 </main>
 {% endblock %}
+

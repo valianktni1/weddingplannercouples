@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% block brand_home %}/app{% endblock %}
+{% block footer_home %}/app{% endblock %}
 {% block theme_assets %}<link rel="stylesheet" href="/static/couple.css?v={{ version }}"><script src="/static/planning-journey.js?v={{ version }}" defer></script><script src="/static/couple-shell.js?v={{ version }}" defer></script>{% if user and user['role']=='couple' and not preview_state %}<link rel="manifest" href="/static/planner.webmanifest"><meta name="theme-color" content="#315744"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Ivory Planner"><link rel="apple-touch-icon" href="/static/planner-icon-192.png"><script src="/static/planner-install.js?v={{ version }}" defer></script>{% endif %}{% endblock %}
 {% block body_class %}couple-page{% endblock %}
 {% block app_class %}couple-app{% endblock %}

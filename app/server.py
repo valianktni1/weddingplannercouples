@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.6.1'
+VERSION='1.6.2'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -55,6 +55,9 @@ def create_app(test_config=None):
     def rotated(user=None,pending=None):
         db().execute('DELETE FROM sessions WHERE id=?',(g.session['id'],))
         g.session=new_session(user,pending)
+        if user:
+            account=db().execute('SELECT role FROM users WHERE id=?',(user,)).fetchone()
+            if account and account['role']=='couple': g.returning_couple=True
     def new_session(user=None,pending=None):
         raw=secrets.token_urlsafe(32);sid=digest(raw)
         row={'id':sid,'user_id':user,'csrf':secrets.token_urlsafe(32),'expires':time.time()+86400*7,'pending':pending,'setup_secret':None}
@@ -152,6 +155,10 @@ def create_app(test_config=None):
         if not request.path.startswith('/static/'): resp.headers['Cache-Control']='no-store'
         if getattr(g,'cookie',None):
             resp.set_cookie('ivory_session',g.cookie,max_age=86400*7,httponly=True,secure=app.config['SECURE_COOKIES'],samesite='Lax')
+        # This preference contains no identity and grants no authentication/access.
+        returning=getattr(g,'returning_couple',False) or (getattr(g,'user',None) is not None and g.user['role']=='couple')
+        if resp.status_code<400 and returning and request.cookies.get('ivory_returning_couple')!='1':
+            resp.set_cookie('ivory_returning_couple','1',max_age=86400*365,httponly=True,secure=app.config['SECURE_COOKIES'],samesite='Lax')
         if 'db' in g:
             if resp.status_code>=400: g.db.rollback()
             else:
@@ -191,7 +198,11 @@ def create_app(test_config=None):
     @app.get('/robots.txt')
     def robots(): return 'User-agent: *\nDisallow: /\n',200,{'Content-Type':'text/plain'}
     @app.get('/')
-    def index(): return render_template('landing.html',settings=config(db()))
+    def index():
+        if request.args.get('welcome')!='1':
+            if g.user and g.user['role']=='couple': return redirect('/app')
+            if not g.user and request.cookies.get('ivory_returning_couple')=='1': return redirect('/login')
+        return render_template('landing.html',settings=config(db()))
     @app.route('/signup',methods=['GET','POST'])
     def signup():
         settings=config(db())
@@ -240,6 +251,7 @@ def create_app(test_config=None):
     def login():
         admin=request.path.startswith('/ivoryadmin')
         if request.method=='GET':
+            if not admin and g.user and g.user['role']=='couple': return redirect('/app')
             if admin and g.user and g.user['role']=='admin': return redirect('/ivoryadmin')
             if admin and pending_admin(): return redirect(admin_next(pending_admin()))
             return render_template('auth.html',mode='login',title='Ivory admin sign-in' if admin else 'Welcome back')
@@ -253,7 +265,10 @@ def create_app(test_config=None):
             return redirect('/ivoryadmin/two-step' if user['totp'] else '/ivoryadmin/two-step/setup')
         rotated(user=user['id']);return redirect('/app')
     @app.post('/logout')
-    def logout(): rotated();return redirect('/')
+    def logout():
+        admin=bool(g.user and g.user['role']=='admin')
+        rotated()
+        return redirect('/ivoryadmin/login' if admin else '/login')
     @app.route('/recover',methods=['GET','POST'])
     def recover():
         if request.method=='GET': return render_template('auth.html',mode='recover',title='Get back into your account')

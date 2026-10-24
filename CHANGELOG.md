@@ -1,3 +1,7 @@
+## v1.6.2 — return to your planner, not the sales page
+
+Send signed-in couples opening the root or sign-in page to their planner. Remember a successful couple sign-in with a non-identifying navigation cookie so an expired session opening the root goes to Welcome back. The cookie grants no access and does not extend authentication. Existing signed-in devices receive it on their next request. Keep first-time visitors on the public page and provide an explicit About the planner link. Legacy standalone root shortcuts route through /app. Couple brand/footer links open the planner; logout goes to the appropriate couple/admin sign-in. No planner, booking, payment, email or database migration.
+
 ## v1.6.1 — clearer couple navigation
 
 Group the existing couple tools into Our plans, Our guests, Our website & invitations, Our wedding day and Our settings. Add a labelled three-line Menu button; retain Home/Checklist/Budget/More and all existing routes, editors and linked Mark timing controls. Closing Menu restores the previous scroll position. Highlight the current tool, including Hub tabs, and guard unfinished Hub forms when navigating through Menu. Add a guest-list/website/invitation/table sequence to the website editor. No new stationery or gift features are claimed, and there are no data, payment, email or integration changes.
