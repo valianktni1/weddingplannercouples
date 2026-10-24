@@ -54,7 +54,7 @@ RENDER_LOCK=threading.BoundedSemaphore(2)
 
 def fonts():
     with FONT_LOCK:
-        for name,file in [('StationerySerif','CormorantGaramond-Regular.ttf'),('StationerySans','Outfit-Regular.ttf')]:
+        for name,file in [('StationerySerif','CormorantGaramond-Regular.ttf'),('StationeryItalic','CormorantGaramond-Italic.ttf'),('StationerySans','Outfit-Regular.ttf')]:
             if name not in pdfmetrics.getRegisteredFontNames():pdfmetrics.registerFont(TTFont(name,str(ASSETS/'fonts'/file)))
 
 
@@ -107,8 +107,11 @@ def readable_date(value):
 
 @lru_cache(maxsize=4)
 def artwork(name,transform='none'):
+    if name=='meadow-sprig':
+        base=artwork('meadow');part=base.crop((int(base.width*.70),0,base.width,base.height));return part.crop(part.getbbox())
     image=Image.open(ASSETS/'art'/(name+'.webp')).convert('RGBA')
     if transform=='rotate':return image.transpose(Image.Transpose.ROTATE_180)
+    if transform=='top':return image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     if transform=='flip':return image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     return image
 
@@ -150,14 +153,64 @@ class Layout:
         for i,line in enumerate(lines):
             tx=x if align=='left' else x+width/2-pdfmetrics.stringWidth(line,font,size)/2
             self.ops.append(('text',line,tx,y+size+i*size*1.2,size,font,colour or self.ink))
+    def names(self,text,top,high,style='inline',align='center'):
+        """Fit the couple as one composition, keeping the ampersand in the accent colour."""
+        parts=re.split(r'\s+(?:&|and)\s+',text,maxsplit=1,flags=re.I)
+        if len(parts)==2:
+            lines=parts if style=='editorial' else [parts[0]+' &',parts[1]] if style=='colour' else [parts[0],'&',parts[1]] if style=='meadow' else [text]
+            if style=='editorial':lines=[parts[0],'& '+parts[1]]
+        else:lines=[text]
+        font='StationerySerif';margin=self.w*(.105 if style=='editorial' else .12);width=self.w-2*margin
+        target=self.w*({'editorial':.215,'colour':.185,'meadow':.17}.get(style,.13))
+        height=self.area*high
+        size=min(target,height/(len(lines)*1.03))
+        minimum=self.w*.065
+        while size>=minimum:
+            if all(pdfmetrics.stringWidth(line,font,size)<=width for line in lines):break
+            size-=.5
+        else:self.issues.append('Your names need more room. Use first names or shorten the wording.');return
+        face=pdfmetrics.getFont(font).face
+        if any(ord(ch) not in face.charToGlyph for ch in text if not ch.isspace()):
+            self.issues.append('This design cannot print one of the characters in your names. Please use a supported spelling.');return
+        total=len(lines)*size*1.03;start=self.offset+self.area*top+(height-total)/2
+        for i,line in enumerate(lines):
+            linew=pdfmetrics.stringWidth(line,font,size);x=margin if align=='left' else (self.w-linew)/2
+            self.ops.append(('richtext',line,x,start+size+i*size*1.03,size,font,self.ink,self.accent))
+    def rule(self,top,align='center'):
+        x=self.w*.105 if align=='left' else self.w*.45
+        self.line(x,self.offset+self.area*top,x+self.w*.10,self.offset+self.area*top,self.accent,.55)
+    def tracked(self,text,top,high,size,tracking=1.5,font='StationerySans',align='center'):
+        """Optical letter spacing stays real text in the PDF, with the same PNG metrics."""
+        if not text:return
+        size=max(9,size);width=self.w*.76
+        text=text.upper();face=pdfmetrics.getFont(font).face
+        if any(ord(ch) not in face.charToGlyph for ch in text if not ch.isspace()):
+            self.issues.append('This design cannot print one of the characters in your text. Please use a supported spelling.');return
+        def measure(t):return pdfmetrics.stringWidth(t,font,size)+max(0,len(t)-1)*tracking
+        lines=[];line=''
+        for word in text.split():
+            if measure(word)>width:self.issues.append('Some wording is too long for this layout. Shorten it or choose a larger size.');return
+            proposed=(line+' '+word).strip()
+            if line and measure(proposed)>width:lines.append(line);line=word
+            else:line=proposed
+        if line:lines.append(line)
+        if len(lines)*size*1.35>self.area*high:
+            # Custom paragraphs can wrap in the same box without losing any wording.
+            self.text(text,self.w*.12,self.offset+self.area*top,width,self.area*high,size,minsize=9,font=font,align=align);return
+        for i,line in enumerate(lines):
+            x=self.w*.105 if align=='left' else (self.w-measure(line))/2
+            self.ops.append(('tracked',line,x,self.offset+self.area*top+size+i*size*1.35,size,font,self.ink,tracking))
     def decoration(self):
         c=self.config['collection'];w=self.w;h=self.area;y=self.offset
         if c=='classic':
             for inset in (w*.035,w*.047):self.rect(inset,y+inset,w-2*inset,h-2*inset,None,self.ink,.45)
-        if c=='editorial':self.line(w*.87,y+h*.06,w*.87,y+h*.22,self.accent,.7)
+        if c=='editorial':
+            self.line(w*.90,y+h*.025,w*.90,y+h*.23,self.accent,.65)
+            initials=''.join(part.strip()[0].upper() for part in re.split(r'\s*(?:&| and )\s*',self.config['names']) if part.strip())[:2]
+            self.text(initials,w*.78,y+h*.07,w*.10,h*.10,w*.045,minsize=w*.035,colour=self.accent)
         if c=='colour':
             # Printed wavy borders: ordinary rectangular paper, no die cutting required.
-            for inset,col in [(w*.035,self.ink),(w*.055,self.accent)]:
+            for inset,col in [(w*.044,self.ink),(w*.067,self.accent)]:
                 n=150;pts=[]
                 for i in range(n+1):
                     t=i/n;pts.append((inset+t*(w-2*inset),y+inset+math.sin(t*math.pi*12)*w*.008))
@@ -167,14 +220,20 @@ class Layout:
                     t=i/n;pts.append((w-inset-t*(w-2*inset),y+h-inset+math.sin(t*math.pi*12)*w*.008))
                 for i in range(n+1):
                     t=i/n;pts.append((inset+math.sin(t*math.pi*12)*w*.008,y+h-inset-t*(h-2*inset)))
-                self.ops.append(('path',pts,col,w*.012))
+                self.ops.append(('path',pts,col,w*.026))
         if c=='botanical':
-            ratio=.18 if self.kind=='seating' else .30
-            depth=.12 if self.kind=='seating' else .20
-            self.image(artwork('botanical','rotate'),0,y,w*ratio,h*depth)
-            self.image(artwork('botanical','flip'),w*(1-ratio),y+h*(1-depth),w*ratio,h*depth)
+            ratio=.18 if self.kind=='seating' else .52
+            depth=.12 if self.kind=='seating' else .20 if self.kind=='menu' else .32
+            self.image(artwork('botanical','top'),0,y,w*ratio,h*depth)
+            bottom_ratio=.18 if self.kind=='seating' else .48
+            bottom_depth=.12 if self.kind=='seating' else .20 if self.kind=='menu' else .25
+            self.image(artwork('botanical','flip'),w*(1-bottom_ratio),y+h*(1-bottom_depth),w*bottom_ratio,h*bottom_depth)
         if c=='meadow':
-            self.image(artwork('meadow'),0,y+h*.8,w,h*.2)
+            if self.kind=='seating':self.image(artwork('meadow'),0,y+h*.84,w,h*.16)
+            elif self.kind in ('place','table'):
+                sprig=artwork('meadow-sprig');aw=w*.28;ah=min(h*.33,aw*sprig.height/sprig.width)
+                self.image(sprig,w-aw,y+h-ah,aw,ah)
+            else:self.image(artwork('meadow-frame'),0,y+h*.20,w,h*.80)
         if self.offset:self.line(0,self.offset,w,self.offset,'#d6d2ca',.25)
 
 
@@ -184,50 +243,97 @@ def build_layout(config,kind,state,photo=None,guest=None,table=None):
     def txt(t,top,high,size=1,font='StationerySerif',colour=None,align='center'):
         p.text(t,margin,y+h*top,cw,h*high,max(9,small*size),minsize=max(9,small*size*.72),font=font,colour=colour,align=align)
     initials=' & '.join(word[0].upper() for word in re.split(r'\s*(?:&| and )\s*',config['names']) if word)[:12]
-    if c=='classic' and kind not in ('place','seating'):txt(initials,.09,.07,1.1,colour=p.accent)
+    def title(text,top=.12,size=.18):
+        p.text(text,margin,y+h*top,cw,h*.17,w*size,minsize=w*.09)
+    def monogram(top=.10):
+        p.text(initials,margin,y+h*top,cw,h*.10,w*.065,minsize=w*.04,font='StationeryItalic',colour=p.accent)
+    if c=='classic' and kind not in ('place','seating'):monogram()
     # Photo templates require a real uploaded photograph only where one is used.
     has_photo=c=='photo' and kind in ('day','evening','save_date','welcome','thanks')
     if has_photo and photo is not None:
         art=photo
         if config['photo_mode']=='mono':art=ImageOps.grayscale(photo).convert('RGB')
-        ph=h*.40;target=(max(1,int(w*4)),max(1,int(ph*4)));art=ImageOps.fit(art,target,method=Image.Resampling.LANCZOS,centering=(.5,{'top':0,'centre':.5,'bottom':1}[config['photo_focus']]))
-        p.image(art,0,0,w,ph)
+        ph=h*(.58 if kind=='welcome' else .47);target=(max(1,int(w*4)),max(1,int(ph*4)));art=ImageOps.fit(art,target,method=Image.Resampling.LANCZOS,centering=(.5,{'top':0,'centre':.5,'bottom':1}[config['photo_focus']]))
+        p.image(art,0,h*.42 if kind=='welcome' else 0,w,ph)
     if has_photo and photo is None:
-        p.rect(0,0,w,h*.4,'#e8e4dd');p.text('Your photograph',w*.1,h*.16,w*.8,h*.1,w*.055,font='StationerySans',colour='#655e55');p.issues.append('Choose your photograph for Photo Story.')
+        photo_y=h*.42 if kind=='welcome' else 0;photo_h=h*.58 if kind=='welcome' else h*.47
+        p.rect(0,photo_y,w,photo_h,'#e8e4dd');p.text('Your photograph',w*.1,photo_y+photo_h*.42,w*.8,h*.1,w*.055,font='StationerySans',colour='#655e55');p.issues.append('Choose your photograph for Photo Story.')
     if kind in ('day','evening','save_date'):
         if not config['names']:p.issues.append('Add your names.')
         if not config['date']:p.issues.append('Add your wedding date before downloading.')
         if kind in ('day','evening') and not config['venue']:p.issues.append('Add the venue for this invitation.')
         if kind in ('day','evening') and not config['arrival']:p.issues.append('Add the arrival time for this invitation.')
         if has_photo:
-            txt(config['intro'],.44,.06,.75,'StationerySans');txt(config['names'],.51,.14,2.5)
-            txt(config['message'],.66,.07,.85);txt(readable_date(config['date']),.75,.05,.9)
-            txt(config['venue'],.81,.05,.9);txt(config['arrival'],.87,.04,.72,'StationerySans');txt(config['closing'],.93,.035,.65)
+            p.tracked(config['intro'] if kind!='save_date' else 'Save the date',.50,.045,w*.024,.9)
+            p.names(config['names'],.55,.12)
+            p.tracked(config['message'],.69,.065,w*.025,.9,font='StationerySerif')
+            p.rule(.77);p.tracked(readable_date(config['date']),.79,.045,w*.030,1.2,font='StationerySerif')
+            p.tracked(config['venue'],.845,.045,w*.027,1.2,font='StationerySerif')
+            txt(config['arrival'],.89,.045,.84);txt(config['closing'],.95,.035,.78,'StationeryItalic')
+        elif c=='editorial':
+            p.tracked(config['intro'] if kind!='save_date' else 'Save the date',.17,.06,w*.026,1.6,align='left')
+            p.names(config['names'],.25,.31,'editorial','left')
+            p.tracked(config['message'],.60,.08,w*.025,1.2,align='left')
+            p.rule(.70,'left');p.tracked(readable_date(config['date']),.735,.06,w*.032,1.5,font='StationerySerif',align='left')
+            p.tracked(config['venue'],.805,.05,w*.028,1.8,font='StationerySerif',align='left')
+            txt(config['arrival'],.86,.05,.94,align='left');p.tracked(config['closing'],.93,.045,w*.024,1.1,align='left')
+        elif c=='meadow':
+            txt(config['intro'] if kind!='save_date' else 'Save the date',.095,.06,1.1,'StationeryItalic')
+            p.names(config['names'],.155,.31,'meadow')
+            txt(config['message'],.495,.065,1.08,'StationeryItalic')
+            p.tracked(readable_date(config['date']),.565,.06,w*.032,1.35,font='StationerySerif')
+            p.tracked(config['venue'],.63,.055,w*.029,1.6,font='StationerySerif')
+            txt(config['arrival'],.695,.055,.97);txt(config['closing'],.755,.055,.94,'StationeryItalic')
+        elif c=='colour':
+            txt(config['intro'] if kind!='save_date' else 'Save the date',.16,.06,1.05)
+            p.names(config['names'],.255,.29,'colour')
+            txt(config['message'],.59,.07,1.08);p.rule(.69)
+            p.tracked(readable_date(config['date']),.73,.055,w*.031,1.2,font='StationerySerif')
+            p.tracked(config['venue'],.795,.05,w*.028,1.3,font='StationerySerif')
+            txt(config['arrival'],.85,.05,.95);txt(config['closing'],.91,.045,.93,'StationeryItalic')
         else:
-            txt(config['intro'] if kind!='save_date' else 'Save the date',.19,.08,.85,'StationerySans')
-            names=config['names'].replace(' & ','\n& ') if c=='editorial' else config['names']
-            txt(names,.29,.23,4.2 if c=='editorial' else 3.4,align='left' if c=='editorial' else 'center')
-            txt(config['message'],.54,.10,1.05);txt(readable_date(config['date']),.67,.06,1.12)
-            txt(config['venue'],.74,.06,1.05);txt(config['arrival'],.81,.055,.9,'StationerySans');txt(config['closing'],.88,.055,.85)
-        if config['recipient']:txt(config['recipient'],.12 if not has_photo else .48,.045,.75,'StationerySans')
+            p.tracked(config['intro'] if kind!='save_date' else 'Save the date',.28,.07,w*.026,1.4,font='StationerySerif' if c=='classic' else 'StationerySans')
+            p.names(config['names'],.365,.13)
+            p.tracked(config['message'],.525,.095,w*.027,1.2,font='StationerySerif' if c=='classic' else 'StationerySans')
+            p.rule(.635);p.tracked(readable_date(config['date']),.675,.06,w*.035,1.4,font='StationerySerif')
+            p.tracked(config['venue'],.75,.05,w*.029,1.5,font='StationerySerif' if c=='classic' else 'StationerySans')
+            txt(config['arrival'],.815,.055,1.0,'StationeryItalic' if c=='classic' else 'StationerySerif')
+            txt(config['closing'],.885,.045,.94,'StationeryItalic')
+        if config['recipient']:txt(config['recipient'],.055 if c!='classic' else .20,.04,.8,'StationerySans')
     elif kind=='welcome':
-        txt('Welcome to the wedding of',.47 if has_photo else .25,.07,1.05,'StationerySans')
-        txt(config['names'],.58 if has_photo else .37,.22,3.8);txt(readable_date(config['date']),.85 if has_photo else .65,.08,1.1)
+        top=.08 if has_photo else .24 if c in ('classic','botanical') else .12
+        p.tracked('Welcome to the wedding of',top,.09,w*.026, w*.005)
+        ntop=.17 if has_photo else .35 if c in ('classic','botanical') else .26
+        style=c if c in ('editorial','meadow','colour') else 'inline'
+        p.names(config['names'],ntop,.15 if has_photo or style=='inline' else .34,style,'left' if c=='editorial' else 'center')
+        dt=.35 if has_photo else .70 if style=='inline' else .72
+        p.rule(dt-.04);p.tracked(date.fromisoformat(config['date']).strftime('%d %B %Y').lstrip('0') if config['date'] else 'Wedding date to confirm',dt,.08,w*.037,w*.006,font='StationerySerif')
         if not config['names']:p.issues.append('Add your names.')
         if not config['date']:p.issues.append('Add your wedding date before downloading.')
     elif kind=='menu':
-        txt('Menu',.14,.12,3.4);txt(config['menu'],.34,.44,1.3)
+        title('Menu',.23 if c=='classic' else .13,.20);p.rule(.34)
+        courses=[block.strip().splitlines() for block in re.split(r'\n\s*\n',config['menu']) if block.strip()]
+        if 1<=len(courses)<=4:
+            top=.36 if c=='meadow' else .41;cell=(.39 if c=='meadow' else .43)/len(courses)
+            for i,lines in enumerate(courses):
+                pos=top+i*cell
+                p.tracked(lines[0],pos,cell*.30,w*.030,w*.006,font='StationerySerif' if c in ('classic','colour','photo') else 'StationerySans')
+                p.text('\n'.join(lines[1:]),margin,y+h*(pos+cell*.32),cw,h*cell*.55,w*.047,minsize=9)
+                if i<len(courses)-1:p.rule(pos+cell*.94)
+        else:txt(config['menu'],.41,.43,1.35)
         if not config['menu']:p.issues.append('Add your menu.')
     elif kind=='place':
         name=guest['name'] if guest else config['recipient']
-        txt(name or 'Guest name',.30,.35,2.2)
+        if c in ('classic','photo'):monogram(.09)
+        p.text(name or 'Guest name',margin,y+h*.40,cw,h*.31,w*.108,minsize=10,font='StationeryItalic' if c=='editorial' else 'StationerySerif')
         if not name:p.issues.append('Choose a guest or enter a name.')
     elif kind=='table':
-        txt('Table',.22,.1,1.2,'StationerySans');txt(table or config['table_name'] or 'Table name',.40,.26,4.5)
+        p.tracked('Table',.26,.09,w*.034,w*.006)
+        title(table or config['table_name'] or 'Table name',.43,.22);p.rule(.70)
         if not (table or config['table_name']):p.issues.append('Choose or enter a table name.')
     elif kind=='thanks':
-        txt('Thank you',.48 if has_photo else .23,.15,3.5);txt(config['message'],.65 if has_photo else .44,.18,1.2)
-        txt(config['names'],.87 if has_photo else .69,.08,1.4)
+        title('Thank you',.51 if has_photo else .25,.17);txt(config['message'],.68 if has_photo else .46,.15,1.12,'StationeryItalic')
+        p.names(config['names'],.86 if has_photo else .61 if c=='meadow' else .65,.10)
     elif kind=='seating':
         txt('Find your table',.09,.09,2.9);txt(config['names'],.20,.06,1.1)
         guests=selected_guests(state,config);groups={}
@@ -258,6 +364,8 @@ def placecard_sheets(cards):
                 if op[0]=='rect':_,x,y,ww,hh,fill,stroke,lw=op;sheet.ops.append(('rect',x+dx,y+dy,ww,hh,fill,stroke,lw))
                 elif op[0]=='line':_,x,y,xx,yy,col,lw=op;sheet.ops.append(('line',x+dx,y+dy,xx+dx,yy+dy,col,lw))
                 elif op[0]=='text':_,text,x,y,size,font,col=op;sheet.ops.append(('text',text,x+dx,y+dy,size,font,col))
+                elif op[0] in ('richtext','tracked'):
+                    tag,text,x,y,size,font,col,extra=op;sheet.ops.append((tag,text,x+dx,y+dy,size,font,col,extra))
                 elif op[0]=='image':_,pic,x,y,ww,hh=op;sheet.ops.append(('image',pic,x+dx,y+dy,ww,hh))
                 elif op[0]=='path':_,pts,col,lw=op;sheet.ops.append(('path',[(x+dx,y+dy) for x,y in pts],col,lw))
             for x,y,sx,sy in [(dx,dy,-1,-1),(dx+cw,dy,1,-1),(dx,dy+ch,-1,1),(dx+cw,dy+ch,1,1)]:
@@ -282,9 +390,16 @@ def draw_pdf(layouts,bleed=0):
             elif op[0]=='path':
                 _,pts,col,lw=op;path=c.beginPath();path.moveTo(pts[0][0],p.h-pts[0][1])
                 for x,y in pts[1:]:path.lineTo(x,p.h-y)
-                path.close();c.setStrokeColor(HexColor(col));c.setLineWidth(lw);c.drawPath(path)
+                path.close();c.setStrokeColor(HexColor(col));c.setLineWidth(lw);c.setLineJoin(1);c.drawPath(path)
             elif op[0]=='text':
                 _,text,x,y,size,font,col=op;c.setFont(font,size);c.setFillColor(HexColor(col));c.drawString(x,p.h-y,text)
+            elif op[0] in ('richtext','tracked'):
+                tag,text,x,y,size,font,col,extra=op;run=c.beginText(x,p.h-y);run.setFont(font,size);run.setFillColor(HexColor(col))
+                if tag=='tracked':run.setCharSpace(extra);run.textOut(text)
+                else:
+                    for chunk in re.split('(&)',text):
+                        run.setFillColor(HexColor(extra if chunk=='&' else col));run.textOut(chunk)
+                c.drawText(run)
             elif op[0]=='image':
                 _,img,x,y,w,h=op;c.drawImage(ImageReader(img),x,p.h-y-h,w,h,mask='auto')
         c.restoreState();c.showPage()
@@ -299,9 +414,21 @@ def draw_png(p,long_edge=1600):
         elif op[0]=='line':
             _,x,y,xx,yy,col,lw=op;d.line((x*scale,y*scale,xx*scale,yy*scale),fill=col,width=max(1,round(lw*scale)))
         elif op[0]=='path':
-            _,pts,col,lw=op;d.line([(x*scale,y*scale) for x,y in pts]+[(pts[0][0]*scale,pts[0][1]*scale)],fill=col,width=max(1,round(lw*scale)),joint='curve')
-        elif op[0]=='text':
-            _,text,x,y,size,font,col=op;file='CormorantGaramond-Regular.ttf' if font=='StationerySerif' else 'Outfit-Regular.ttf';f=ImageFont.truetype(str(ASSETS/'fonts'/file),max(1,round(size*scale)));d.text((x*scale,y*scale),text,font=f,fill=col,anchor='ls')
+            _,pts,col,lw=op;points=[(x*scale,y*scale) for x,y in pts];stroke=max(1,round(lw*scale));d.line(points+[points[0]],fill=col,width=stroke)
+            # Explicit round joins avoid Pillow's short-segment gaps in thick scalloped borders.
+            radius=stroke/2
+            for x,y in points:d.ellipse((x-radius,y-radius,x+radius,y+radius),fill=col)
+        elif op[0] in ('text','richtext','tracked'):
+            _,text,x,y,size,font,col,*extra=op
+            file={'StationerySerif':'CormorantGaramond-Regular.ttf','StationeryItalic':'CormorantGaramond-Italic.ttf','StationerySans':'Outfit-Regular.ttf'}[font]
+            f=ImageFont.truetype(str(ASSETS/'fonts'/file),max(1,round(size*scale)))
+            if op[0]=='text':d.text((x*scale,y*scale),text,font=f,fill=col,anchor='ls')
+            elif op[0]=='tracked':
+                for char in text:
+                    d.text((x*scale,y*scale),char,font=f,fill=col,anchor='ls');x+=pdfmetrics.stringWidth(char,font,size)+extra[0]
+            else:
+                for chunk in re.split('(&)',text):
+                    d.text((x*scale,y*scale),chunk,font=f,fill=extra[0] if chunk=='&' else col,anchor='ls');x+=pdfmetrics.stringWidth(chunk,font,size)
         elif op[0]=='image':
             _,pic,x,y,w,h=op;pic=pic.resize((max(1,round(w*scale)),max(1,round(h*scale))),Image.Resampling.LANCZOS);img.paste(pic,(round(x*scale),round(y*scale)),pic if pic.mode=='RGBA' else None)
     out=io.BytesIO();img.save(out,'PNG',optimize=True);return out.getvalue()

@@ -43,7 +43,7 @@ def test_real_pdf_png_sizes_fonts_and_bleed(app):
     pdf=PdfReader(io.BytesIO(result.data));page=pdf.pages[0];assert len(pdf.pages)==1
     assert abs(float(page.mediabox.width)-(127+6)*72/25.4)<.1
     assert abs(float(page.trimbox.width)-127*72/25.4)<.1
-    assert 'Emma & Jamie' in page.extract_text() and 'The Garden House' in page.extract_text()
+    assert 'Emma & Jamie' in page.extract_text() and 'the garden house' in page.extract_text().casefold()
     fonts=page['/Resources']['/Font'].get_object();assert any('/FontFile2' in f.get_object().get('/FontDescriptor',{}) for f in fonts.values())
     result=export(c,'day',d,format='png');assert result.status_code==200
     image=Image.open(io.BytesIO(result.data));assert max(image.size)==1800
@@ -141,3 +141,36 @@ def test_evening_invitation_uses_reception_venue_and_tracks_its_changes():
     assert defaults(s,'evening')['venue']=='Evening reception barn'
     assert defaults(s,'day')['venue']=='Ceremony church'
     old=source(s,'evening');s['day']['receptionVenue']='New reception venue';assert source(s,'evening')!=old
+
+
+def test_revised_compositions_fit_every_offered_paper_size():
+    from app.core import empty_state
+    from reportlab.pdfbase import pdfmetrics
+    s=empty_state();s.update(names=['Emma','Jamie'],date='2027-06-19');s['day']['venue']='The Garden House'
+    s['guests']=[{'id':'g','name':'Alex Taylor','table':'Rose','rsvp':'Accepted'}]
+    for collection,meta in COLLECTIONS.items():
+        for kind,item in KINDS.items():
+            for size in item['sizes']:
+                d=defaults(s,kind);d.update(collection=collection,palette=next(iter(meta['palettes'])),size=size,arrival='Arrival at 12.30pm · Ceremony at 1pm',recipient='Alex Taylor',table_name='Rose',menu='STARTER\nRoasted tomato soup\n\nMAIN\nLemon & thyme chicken\n\nDESSERT\nSummer berry pavlova')
+                p=build_layout(d,kind,s,Image.new('RGB',(400,300),'#71816c'))
+                assert not p.issues,(collection,kind,size,p.issues)
+                for op in p.ops:
+                    if op[0] not in ('text','tracked','richtext'):continue
+                    tag,text,x,baseline,points,font,colour,*extra=op
+                    width=pdfmetrics.stringWidth(text,font,points)+(max(0,len(text)-1)*extra[0] if tag=='tracked' else 0)
+                    assert x>=0 and x+width<=p.w+.1,(collection,kind,size,text)
+                    assert baseline-points>=p.offset-.1 and baseline+points*.25<=p.h+.1,(collection,kind,size,text)
+
+
+def test_editorial_and_meadow_keep_distinct_names_and_accent_in_real_exports():
+    from app.core import empty_state
+    s=empty_state();s.update(names=['Emma','Jamie'],date='2027-06-19');s['day']['venue']='The Garden House'
+    for collection,expected in [('editorial',['Emma','& Jamie']),('meadow',['Emma','&','Jamie'])]:
+        d=defaults(s,'day');d.update(collection=collection,palette=next(iter(COLLECTIONS[collection]['palettes'])),arrival='Arrive at noon')
+        p=build_layout(d,'day',s);names=[op for op in p.ops if op[0]=='richtext']
+        assert [op[1] for op in names]==expected
+        assert all(op[4]>=p.w*.13 for op in names)
+        assert any('&' in op[1] and op[-1]!=op[-2] for op in names)
+        extracted=PdfReader(io.BytesIO(draw_pdf([p]))).pages[0].extract_text()
+        assert all(word in extracted for word in ('Emma','Jamie'))
+        assert draw_png(p,400).startswith(b'\x89PNG')

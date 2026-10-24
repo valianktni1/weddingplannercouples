@@ -13,3 +13,7 @@ Sources:
 - https://github.com/google/fonts/tree/main/ofl/outfit
 
 Collection previews are rendered privately from the signed-in couple's current details. No example couple photographs are bundled. Images, font data and rendering code are served locally; there are no runtime AI calls.
+
+Visual correction, 24 October 2026: `meadow-frame.webp` is a new original transparent portrait frame generated with the built-in image tool. Prompt: airy hand-painted watercolour wildflowers growing from the bottom and climbing the edges, dusty pink cosmos, cornflower blue, ivory daisies and sage foliage; generous transparent centre, no text, paper, shadows or mockup. The separate editable text is rendered by the app. The smaller place-card sprig is cropped from the original meadow artwork at runtime.
+
+`CormorantGaramond-Italic.ttf` is the weight-400 static instance of the official Google Fonts Cormorant Garamond italic variable font, under the existing included Cormorant Garamond SIL Open Font Licence. Source: https://github.com/google/fonts/blob/main/ofl/cormorantgaramond/CormorantGaramond-Italic%5Bwght%5D.ttf
