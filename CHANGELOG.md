@@ -1,3 +1,11 @@
+## v1.7.0 — invitations and matching stationery
+
+Add six coordinated collections (Modern Editorial, Botanical Garden, Timeless Classic, Romantic Meadow, Contemporary Colour and Photo Story) across day/evening invitations, save-the-dates, welcome signs, menus, place cards, table cards, seating charts and thank-you cards. A four-step couple journey provides personalised collection examples, curated palettes, correct paper sizes, optional private photos/crop choices, saved drafts, required preview/confirmation, vector-text PDFs and sharing PNGs. Guest/table batches reuse current names and assignments; all-guest place cards are arranged on A4 cutting sheets, including folded cards.
+
+Add isolated, revision-checked stationery drafts and meaningful source-change/download warnings. Preserve wording on conflicts, offer a local wording copy and retain the existing unsaved navigation guards. Block incomplete, unsupported or overflowing output rather than silently clipping. Exclude declined guests and private guest health/financial data. Existing saved designs remain downloadable after editing access ends; suspension and membership checks remain enforced. Preserve draft photographs, backup/export saved stationery and prevent partner-join from discarding an otherwise empty account's stationery.
+
+Include original locally generated artwork, OFL-licensed embedded fonts and the configuration-preserving v1.7.0 updater. No runtime AI subscription/API, new production dependency, external print service, automatic invitation send, public RSVP redesign, gift feature, pricing change or booking-contract change.
+
 ## v1.6.2 — return to your planner, not the sales page
 
 Send signed-in couples opening the root or sign-in page to their planner. Remember a successful couple sign-in with a non-identifying navigation cookie so an expired session opening the root goes to Welcome back. The cookie grants no access and does not extend authentication. Existing signed-in devices receive it on their next request. Keep first-time visitors on the public page and provide an explicit About the planner link. Legacy standalone root shortcuts route through /app. Couple brand/footer links open the planner; logout goes to the appropriate couple/admin sign-in. No planner, booking, payment, email or database migration.

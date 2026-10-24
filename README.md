@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.6.2
+# Ivory Digital Wedding Planner — v1.7.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -579,3 +579,27 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The established updater preserves installation settings, backs up data, rehearses recovery and prints image rollback instructions. Existing couples need not reinstall the app; a sign-in/visit after updating sets the returning-device preference. Browser/OS shortcuts with independently cached addresses may still need checking on the physical phone.
+
+
+## Invitations & matching stationery — v1.7.0
+
+Open **Menu → Our stationery**, or use Invitations & stationery under Keep planning. Choose a collection, an item, personalise, then save/preview and confirm before downloading. Six collections each support nine items: day/evening invitations, save-the-dates, welcome signs, menus, place cards, table names/numbers, seating charts and thank-you cards. Collection examples use the couple's own names/date; Photo Story uses a photograph they uploaded or a clearly marked photo placeholder. No fictional couple photographs ship in the app.
+
+Curated palettes keep text legible; fonts/layouts remain controlled. Names/date/venue start from the plan; **Use current wedding details** refreshes them explicitly without replacing other wording. Enter the actual day/evening arrival details and venue. Menus start blank so sample food is never mistaken for a confirmed menu. Photo Story uses private cover uploads with colour/black-and-white and top/centre/bottom crop choices. Photos used by saved stationery cannot be deleted until removed from those drafts. Uploading a photograph does not publish it.
+
+Place cards and seating charts use confirmed guests by default. Couples can deliberately include everyone except declined guests. Single place cards accept a selected guest or a manually entered name; all-guest PDFs reuse live guest names and come on A4 cutting sheets (up to 250 guests). Folded cards have a fine fold line. Table batches use existing guest table assignments. Seating charts support up to 18 tables, require every selected guest to have a table and reject layouts too dense to read. Dietary/access needs, private notes, budgets and invitation tokens are never printed automatically.
+
+Downloads are standard RGB PDFs with embedded TrueType fonts and vector text/borders, at the selected physical size. Optional 3 mm bleed is available for individual PDFs; A4 place-card cutting sheets have no bleed. PNGs are sharing images with a maximum 1800-pixel edge, not large-format print masters. Check actual-size test prints and confirm the printer's own material/colour/finishing requirements before ordering. Printed scallops are artwork on rectangular paper; physical die-cut shapes, foil and printing/postage fulfilment are not included.
+
+No messages are sent by creating/downloading stationery. Couples can share an invitation image alongside their existing personal RSVP link from Our website & invitations. Animated envelopes, redesigned public invitation pages and delivery tracking for these images are not part of this release. Wedding website themes and existing RSVP/integration behaviour remain unchanged.
+
+Drafts have separate revisions and source fingerprints. A partner conflict retains the form and offers a local wording copy. Source changes flag review; exports reject stale source/draft revisions or missing/overflowing content. Old downloaded files cannot update automatically. A draft is stored per stationery item; this is not an unlimited multi-version design library. Do not leave a draft to start another item without saving if its wording should be kept. Saved designs are included in full private JSON exports and normal database backups. Existing read-only accounts can download saved designs, but cannot save new edits. Admin sample preview does not expose couple stationery.
+
+The renderer is local and deterministic. Generative AI helped create the original botanical artwork during development; live personalisation does not call ChatGPT or require any API key/subscription. Font licences and artwork provenance are under app/static/stationery/.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v170.sh
+```
+
+The updater preserves configuration and port 30063, backs up the database/files/key, rehearses archive recovery in isolation and prints rollback instructions. The only schema change is an additive stationery_drafts table; older images ignore it. No existing planner state, payment, invitation or booking data is rewritten. After deployment, check a preview and test download on the physical phone and printer.

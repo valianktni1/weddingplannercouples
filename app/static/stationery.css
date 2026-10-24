@@ -1,0 +1,27 @@
+#ivory-planner.couple-app .stationery-main{max-width:1250px;margin:auto}
+#ivory-planner.couple-app .stationery-steps{display:flex;flex-wrap:wrap;gap:8px;background:transparent;border:0;margin:12px 0 24px;padding:0}
+#ivory-planner.couple-app .stationery-steps button{width:auto;flex:1 1 145px;border:1px solid var(--p-border);padding:10px 12px;text-align:center;justify-content:center;margin:0}
+#ivory-planner.couple-app .stationery-steps button[aria-current=step]{background:var(--p-brand);color:var(--p-on)}
+#ivory-planner.couple-app .stationery-collections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+#ivory-planner.couple-app .collection-card{padding:0 0 18px;border:1px solid var(--p-border);border-radius:12px;overflow:hidden;background:var(--p-surface);text-align:left;color:var(--p-text)}
+#ivory-planner.couple-app .collection-card img{width:100%;height:280px;object-fit:contain;background:#f1eee7;display:block;padding:14px}
+#ivory-planner.couple-app .collection-card strong,#ivory-planner.couple-app .collection-card small{display:block;padding:0 18px}
+#ivory-planner.couple-app .collection-card strong{font-size:21px;margin:14px 0 6px}
+#ivory-planner.couple-app .collection-card small{font-size:16px;color:var(--p-secondary);line-height:1.4}
+#ivory-planner.couple-app .stationery-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#ivory-planner.couple-app .stationery-items button{text-align:left;padding:20px;line-height:1.5}
+#ivory-planner.couple-app .stationery-edit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:30px;align-items:start}
+#ivory-planner.couple-app .stationery-edit form{padding:22px;background:var(--p-surface);border:1px solid var(--p-border);border-radius:12px}
+#ivory-planner.couple-app .stationery-picture{width:100%;height:auto;max-height:650px;object-fit:contain;display:block;background:#eeeae2;border-radius:5px}
+#ivory-planner.couple-app .stationery-preview{padding:18px;background:var(--p-surface);border:1px solid var(--p-border);border-radius:12px}
+#ivory-planner.couple-app .stationery-preview p{font-size:16px}
+#ivory-planner.couple-app .stationery-preview .actions>*{flex:1 1 150px}
+#ivory-planner.couple-app .stationery-stale{padding:16px;border:1px solid var(--p-warning);border-radius:6px;background:var(--p-warm);color:var(--p-text)}
+#ivory-planner.couple-app .stationery-draft-list{margin:28px 0}
+#ivory-planner.couple-app .stationery-draft-list .planning-link small{font-size:16px}
+#ivory-planner.couple-app .stationery-print-note{font-size:16px;color:var(--p-secondary)}
+#ivory-planner.couple-app .stationery-actions{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0}
+#ivory-planner.couple-app .stationery-actions button{flex:1 1 180px}
+@media(max-width:900px){#ivory-planner.couple-app .stationery-collections,#ivory-planner.couple-app .stationery-items{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#ivory-planner.couple-app .stationery-edit{grid-template-columns:1fr}#ivory-planner.couple-app .collection-card img{height:220px}#ivory-planner.couple-app .stationery-preview{padding:14px}#ivory-planner.couple-app .stationery-edit form{padding:18px}}
+@media(max-width:420px){#ivory-planner.couple-app .stationery-collections,#ivory-planner.couple-app .stationery-items{grid-template-columns:1fr}#ivory-planner.couple-app .collection-card img{height:300px}}

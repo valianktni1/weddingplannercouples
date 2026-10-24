@@ -13,7 +13,7 @@ const assert=require('node:assert/strict');
  await page.locator('[data-couple-page=tasks]').first().count();
  await page.locator('.page-content').evaluate(el=>el.scrollTop=el.scrollHeight);
  const y=await page.locator('.page-content').evaluate(el=>el.scrollTop);assert(y>0);
- await open();assert.equal(await page.locator('.planner-menu-group h3').count(),5);
+ await open();assert.equal(await page.locator('.planner-menu-group h3').count(),6);
  await page.locator('[data-couple-close]').click();assert(Math.abs(await page.locator('.page-content').evaluate(el=>el.scrollTop)-y)<3,'close lost page position');
  for(const width of [320,390,736,1280])for(const dark of [false,true]){
   await page.setViewportSize({width,height:844});await page.locator('#ivory-planner').evaluate((el,d)=>el.classList.toggle('dark',d),dark);await open();

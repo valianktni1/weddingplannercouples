@@ -1,0 +1,10 @@
+{% extends 'couple_base.html' %}
+{% block head %}<link rel="stylesheet" href="/static/stationery.css?v={{ version }}"><script src="/static/stationery.js?v={{ version }}" defer></script>{% endblock %}
+{% block content %}
+<main id="stationery-main" class="stationery-main">
+  <div class="heading"><div><div class="eyebrow">Made for your day</div><h1>Our invitations & stationery</h1><p>Choose a look. Make it yours. Keep everything matching.</p></div></div>
+  <p id="stationery-status" role="status" aria-live="polite">Opening your collections…</p>
+  <button type="button" id="stationery-recovery" hidden>Keep a wording copy</button>
+  <div id="stationery-app"></div>
+</main>
+{% endblock %}

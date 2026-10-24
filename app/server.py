@@ -23,7 +23,7 @@ from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_e
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 
-VERSION='1.6.2'
+VERSION='1.7.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -138,7 +138,7 @@ def create_app(test_config=None):
         g.session=dict(row) if row else new_session()
         if g.session['user_id']:
             g.user=db().execute('SELECT * FROM users WHERE id=?',(g.session['user_id'],)).fetchone()
-            if g.user and g.user['role']=='couple' and request.method=='GET' and request.path in ['/app','/api/state','/hub','/api/hub']:
+            if g.user and g.user['role']=='couple' and request.method=='GET' and request.path in ['/app','/api/state','/hub','/api/hub','/stationery','/api/stationery']:
                 db().execute('INSERT INTO hub_meta(wedding_id,last_active) SELECT wedding_id,? FROM members WHERE user_id=? ON CONFLICT(wedding_id) DO UPDATE SET last_active=excluded.last_active WHERE coalesce(last_active,0)<?',(time.time(),g.user['id'],time.time()-300))
         db().commit()
         if request.method in ('POST','PUT','PATCH','DELETE') and request.path!='/api/stripe/webhook':
@@ -356,7 +356,7 @@ def create_app(test_config=None):
     @app.get('/api/export')
     @auth()
     def export():
-        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),exported=time.time())
+        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],exported=time.time())
     @app.get('/website')
     @auth()
     def website_editor(): wedding();return render_template('website_editor.html')
@@ -406,7 +406,7 @@ def create_app(test_config=None):
             previous=db().execute('SELECT w.* FROM weddings w JOIN members m ON m.wedding_id=w.id WHERE m.user_id=?',(u['id'],)).fetchone()
             if previous:
                 old=json.loads(previous['state'])
-                if previous['id']==target['id'] or old['ready'] or any(old['names']) or old['date'] or old['budget'] is not None or old['priorities'] or old['day']!=empty_state()['day'] or any(old[key] for key in ['suppliers','payments','tasks','guests','groups','events','notes']) or previous['slug'] or any(db().execute('SELECT 1 FROM '+table+' WHERE wedding_id=?',(previous['id'],)).fetchone() for table in ['hub_events','hub_jobs','hub_tables','hub_shares']) or db().execute('SELECT 1 FROM uploads WHERE wedding_id=?',(previous['id'],)).fetchone() or db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(previous['id'],)).fetchone():
+                if previous['id']==target['id'] or old['ready'] or any(old['names']) or old['date'] or old['budget'] is not None or old['priorities'] or old['day']!=empty_state()['day'] or any(old[key] for key in ['suppliers','payments','tasks','guests','groups','events','notes']) or previous['slug'] or any(db().execute('SELECT 1 FROM '+table+' WHERE wedding_id=?',(previous['id'],)).fetchone() for table in ['hub_events','hub_jobs','hub_tables','hub_shares','stationery_drafts']) or db().execute('SELECT 1 FROM uploads WHERE wedding_id=?',(previous['id'],)).fetchone() or db().execute('SELECT 1 FROM purchases WHERE wedding_id=?',(previous['id'],)).fetchone():
                     raise ValueError('This account already has wedding plans. No plans were removed. Sign in to review them and contact Ivory Digital before combining accounts.')
                 db().execute('DELETE FROM members WHERE user_id=?',(u['id'],))
                 if not db().execute('SELECT 1 FROM members WHERE wedding_id=?',(previous['id'],)).fetchone():
@@ -569,6 +569,7 @@ def create_app(test_config=None):
         w=wedding(True);f=db().execute('SELECT * FROM uploads WHERE id=? AND wedding_id=?',(uid,w['id'])).fetchone()
         if not f: abort(404)
         if json.loads(w['site']).get('cover')==uid: raise ValueError('Remove this cover from the website before deleting it.')
+        if any(json.loads(r['data']).get('photo')==uid for r in db().execute('SELECT data FROM stationery_drafts WHERE wedding_id=?',(w['id'],))): raise ValueError('Remove this photograph from your stationery drafts before deleting it.')
         db().execute('DELETE FROM uploads WHERE id=?',(uid,));g.on_commit=getattr(g,'on_commit',[])
         g.on_commit.append(lambda:attachment_path(f).unlink(missing_ok=True));return jsonify(ok=True)
     @app.get('/weddings/<slug>/cover')
@@ -1211,6 +1212,8 @@ def create_app(test_config=None):
     from .wbm_timings import register_wbm_timings
     register_wbm_timings(app,db,auth,wedding,json_body,audit)
     hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
+    from .stationery import register_stationery
+    register_stationery(app,db,auth,wedding,json_body,audit,rate)
     from .control_centre import register_control_centre
     register_control_centre(app, VERSION)
     return app

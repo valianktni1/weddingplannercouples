@@ -106,6 +106,8 @@ def initialise(data_dir):
         db.executescript(SCHEMA)
         from .day_hub import SCHEMA as HUB_SCHEMA
         db.executescript(HUB_SCHEMA)
+        from .stationery import SCHEMA as STATIONERY_SCHEMA
+        db.executescript(STATIONERY_SCHEMA)
         from .wbm_timings import SCHEMA as WBM_TIMINGS_SCHEMA
         db.executescript(WBM_TIMINGS_SCHEMA)
         if 'html_body' not in {r['name'] for r in db.execute('PRAGMA table_info(mail)')}:
@@ -293,5 +295,6 @@ def access_end(settings, wedding_date='', purchased=None):
         if wedding<=max_date:
             return (max(wedding,start)+timedelta(days=int(settings['days_after_wedding']))).isoformat()
     return (start+timedelta(days=365)).isoformat()
+
 
 
