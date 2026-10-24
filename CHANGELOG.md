@@ -1,3 +1,7 @@
+## v1.7.1 — approved stationery compositions
+
+Restore the six approved stationery looks with collection-specific name compositions, accent ampersands, larger botanical artwork, tall meadow flowers, italic details, course headings and monograms. Smooth thick scalloped PNG borders and keep real editable text in matching print PDFs. Include the local OFL italic font and original transparent meadow frame. No draft rewrite, migration or integration change. Add the configuration-preserving v1.7.1 updater.
+
 ## v1.7.0 — invitations and matching stationery
 
 Add six coordinated collections (Modern Editorial, Botanical Garden, Timeless Classic, Romantic Meadow, Contemporary Colour and Photo Story) across day/evening invitations, save-the-dates, welcome signs, menus, place cards, table cards, seating charts and thank-you cards. A four-step couple journey provides personalised collection examples, curated palettes, correct paper sizes, optional private photos/crop choices, saved drafts, required preview/confirmation, vector-text PDFs and sharing PNGs. Guest/table batches reuse current names and assignments; all-guest place cards are arranged on A4 cutting sheets, including folded cards.

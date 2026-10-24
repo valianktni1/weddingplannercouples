@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.7.0
+# Ivory Digital Wedding Planner — v1.7.1
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -603,3 +603,15 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The updater preserves configuration and port 30063, backs up the database/files/key, rehearses archive recovery in isolation and prints rollback instructions. The only schema change is an additive stationery_drafts table; older images ignore it. No existing planner state, payment, invitation or booking data is rewritten. After deployment, check a preview and test download on the physical phone and printer.
+
+
+## Approved stationery designs — v1.7.1
+
+Restore the approved collection character with large editorial names, contrasting ampersands, fuller botanical corners, tall wildflowers, coordinated menus and signs, monograms and smooth coloured borders. Preview images and PDF/PNG downloads use the same editable compositions. The approved review output is retained without further visual changes. There are no data migrations or saved-wording rewrites. A newly downloaded copy uses the revised design; check it before sharing or printing.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v171.sh
+```
+
+The updater retains installation settings, backs up data and tests recovery before restarting only the planner.
