@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.6.0
+# Ivory Digital Wedding Planner — v1.6.1
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -49,8 +49,8 @@ The database is SQLite on your local ZFS dataset, with WAL and transaction check
 - SMTP credentials, Stripe credentials, DNS and TLS cannot be filled in without your accounts. Configure these before enabling their features.
 - Payment ticks are the couple’s records, not confirmation from suppliers. Automatic bank reconciliation is not included.
 - The rehearsal models a single wedding day using entered allowances. It does not forecast weather, live traffic or sunset. An outdoor-light cutoff can be entered after it is checked separately.
-- Table assignments are individual labels; an interactive floor-plan editor is not included. Calendar phone subscriptions, multi-day scheduling and custom wedding domains are not included in this release.
-- Handovers are text/JSON, not designed PDF layouts. Photographs are covers, not a duplicate guest-photo/gallery system.
+- The visual seating planner supports round/long tables, capacities and guest assignments. Calendar phone subscriptions, multi-day scheduling and custom wedding domains are not included.
+- Role-specific PDF day packs and offline HTML snapshots are available through the Wedding Day Hub, alongside private text/JSON exports. Photographs are covers, not a duplicate guest-photo/gallery system.
 - Mail providers can very occasionally accept an email and disconnect before acknowledging it. Stable Message-IDs and reminder dedupe reduce duplicates but do not promise mathematically exactly-once delivery.
 - Independent partner edits and RSVPs merge when possible. Conflicting edits to the same field show recovery options: download the unsaved copy, then reload to review the latest plan. There is no offline or live-push editing.
 
@@ -551,3 +551,17 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 This updater keeps local Control Centre/environment references and the current port/datasets. It backs up and rehearses archive recovery in isolation before restarting only the planner web/worker, and prints a rollback command. Refresh the app after deployment to load the versioned stylesheet. Actual visual layout and OS/browser rendering require a mobile/desktop installation check; do not treat backend tests as proof of visual appearance.
+
+
+## Grouped couple navigation — v1.6.1
+
+The labelled three-line Menu and mobile More button open the same grouped navigation. Our plans holds checklist, budget, suppliers, calendar and documents; Our guests holds guest/reply/photo groups and tables; Our website & invitations holds the editor and personal guest links; Our wedding day holds build/check/review, Hub and day packs; Our settings holds account/partner details and access. Optional future stationery/gift features are not shown until built. Close menu restores your previous page position. Hub menu links use the existing unfinished-form guard, and the linked Send final timings to Mark control appears inside Our wedding day on the planner.
+
+The website editor links the existing guest list, invitation tools and seating planner in a practical sequence. All tools remain accessible in any order. No database, entitlement, email or booking-integration change.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v161.sh
+```
+
+This uses the established configuration-preserving backup/isolated-restore and image rollback process. Physical-phone layout checks remain useful after deployment.

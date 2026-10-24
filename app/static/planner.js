@@ -13,7 +13,7 @@ const val=n=>root.querySelector('#f-'+n)?.value??'',checked=n=>!!root.querySelec
 const check=(label,name,on)=>`<label class="check"><input id="f-${name}" type="checkbox" ${on?'checked':''}><span>${label}</span></label>`;
 const names=()=>data.names.map((n,i)=>n||'Partner '+(i+1)),couple=()=>names().join(' & ');
 const header=(title,desc,actions='')=>`<div class="heading"><div><div class="eyebrow">${esc(couple())} · ${dateText(data.date)}</div><h1>${title}</h1><p class="muted">${desc}</p></div><div class="actions">${actions}</div></div><div id="ip-extra" class="insert" hidden></div>`;
-const navs=[['home','Our wedding','house'],['day','Build our timings','calendar-days'],['test','Check our timings','timer'],['calendar','Calendar','calendar'],['money','Our budget','wallet'],['suppliers','Suppliers','contact'],['guests','Guests & photos','users'],['tasks','Our checklist','list-checks'],['final','Review & export','file-text'],['account','Our settings','settings']];
+const navs=[['home','Our wedding','house'],['tasks','Our checklist','list-checks'],['money','Our budget','wallet'],['suppliers','Suppliers','contact'],['calendar','Calendar','calendar'],['guests','Guests & photos','users'],['day','Build our timings','calendar-days'],['test','Check our timings','timer'],['final','Review & export','file-text'],['account','Our settings','settings']];
 if(data.ready&&!navs.some(n=>n[0]===page))page='home';
 window.ivoryCoupleNavigate=p=>{if(navs.some(n=>n[0]===p))navigate(p)};
 const remaining=p=>Math.max(0,p.amount-p.paid),paidFor=s=>data.payments.filter(p=>p.supplier===s.id).reduce((n,p)=>n+p.paid,0),scheduledFor=s=>data.payments.filter(p=>p.supplier===s.id).reduce((n,p)=>n+p.amount,0);
@@ -185,5 +185,6 @@ render();
 // The photography preview must never send an unsaved or conflicted draft.
 window.ivoryPlannerReadyForTimings=async()=>{if(!data.ready)throw new Error('Finish the short planner setup before submitting final timings.');await saveQueue;if(saveFailed||pendingSaves||draftDirty)throw new Error('Save or close your current form before reviewing final timings. Any unsaved changes are still here.');};
 })();
+
 
 

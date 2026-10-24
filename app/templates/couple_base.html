@@ -4,17 +4,35 @@
 {% block app_class %}couple-app{% endblock %}
 {% block brand_subtitle %}Built by Weddings By Mark{% endblock %}
 {% block header_account %}{% endblock %}
-{% block header_menu %}<button type="button" data-couple-menu aria-expanded="false" aria-controls="couple-menu">Menu</button>{% endblock %}
+{% block header_menu %}<button type="button" class="planner-menu-toggle" data-couple-menu aria-expanded="false" aria-controls="couple-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg><span>Menu</span></button>{% endblock %}
 {% block page_menu %}
 <section id="couple-menu" class="couple-menu" hidden aria-label="All your planner pages">
   <div class="section-heading"><h2>Your planner</h2><button type="button" data-couple-close>Close menu</button></div>
-  <nav aria-label="All planner pages">
-    {% for key,label in [('home','Our wedding'),('day','Build our timings'),('test','Check our timings'),('calendar','Calendar'),('money','Our budget'),('suppliers','Suppliers'),('guests','Guests & photos'),('tasks','Our checklist'),('final','Review & export'),('account','Our settings')] %}
-    <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>
-    {% endfor %}
+  <p class="menu-intro">Everything for your wedding, together. Start wherever suits you.</p>
+  <nav aria-label="All planner pages" class="planner-menu-groups">
+    <section class="planner-menu-group"><h3>Our plans</h3>
+      {% for key,label in [('home','Our wedding'),('tasks','Our checklist'),('money','Our budget'),('suppliers','Suppliers'),('calendar','Calendar')] %}
+      <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>{% endfor %}
+      {% if not preview_state %}<a href="/files" data-couple-route="files">Our documents<span aria-hidden="true">›</span></a>{% endif %}
+    </section>
+    <section class="planner-menu-group"><h3>Our guests</h3>
+      <a href="/app#guests" data-couple-page="guests">Guests, replies & photo groups<span aria-hidden="true">›</span></a>
+      {% if not preview_state %}<a href="/hub#seating" data-couple-route="seating">Our table plan<span aria-hidden="true">›</span></a>{% endif %}
+    </section>
+    {% if not preview_state %}<section class="planner-menu-group"><h3>Our website & invitations</h3>
+      <a href="/website" data-couple-route="website">Edit & preview our website<span aria-hidden="true">›</span></a>
+      <a href="/website#guest-invitations" data-couple-route="invitations">Guest invitation links<span aria-hidden="true">›</span></a>
+    </section>{% endif %}
+    <section class="planner-menu-group"><h3>Our wedding day</h3>
+      {% for key,label in [('day','Build our timings'),('test','Check our timings'),('final','Review & export')] %}
+      <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>{% endfor %}
+      {% if not preview_state %}<a href="/hub" data-couple-route="hub">Wedding Day Hub · helpers & sharing<span aria-hidden="true">›</span></a><a href="/hub#packs" data-couple-route="packs">Download day packs<span aria-hidden="true">›</span></a><div id="couple-booking-tools" class="menu-booking-tools"></div>{% endif %}
+    </section>
+    <section class="planner-menu-group"><h3>Our settings</h3>
+      <a href="/app#account" data-couple-page="account">Our details & partner access<span aria-hidden="true">›</span></a>
+      {% if not preview_state %}<a href="/upgrade" data-couple-route="access">Account access<span aria-hidden="true">›</span></a>{% endif %}
+    </section>
   </nav>
-  <p class="muted">Wedding tools and any final-timings controls are below this menu.</p>
-  {% if not preview_state %}<div class="menu-tools"><a href="/hub">Share our day · Wedding Day Hub</a><a href="/hub#seating">Our table plan</a><a href="/website">Our wedding website</a><a href="/files">Our documents</a><a href="/upgrade">Account access</a></div>{% endif %}
   {% if user and user['role']=='couple' and not preview_state %}<button type="button" data-install-open>Add to home screen</button>{% endif %}
   {% if user and not preview_state %}<form class="menu-account" method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>{% endif %}
 </section>
@@ -28,3 +46,4 @@
 </nav>
 {% if user and user['role']=='couple' and not preview_state %}{% include 'install_prompt.html' %}{% endif %}
 {% endblock %}
+

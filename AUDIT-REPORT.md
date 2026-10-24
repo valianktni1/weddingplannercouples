@@ -1,3 +1,11 @@
+## v1.6.1 — grouped navigation and guest journey
+
+Built on main 583b5767c7f702346e08a007d97051850f05189d. Keep all existing planner routes and ten internal pages, bottom dock layout, optional installation, sample-only admin preview and linked WBM final-timings controls (now inside the wedding-day menu group). Group existing tools under five plain-language headings; future stationery, gift and after-wedding additions are not presented as working features. The header Menu has a labelled three-line icon, and More opens the same navigation.
+
+Menu Close/Escape restores the content/window scroll position without rerendering the underlying form. Hub menu navigation delegates to an explicit Hub tab guard, retaining dirty-form confirmation and busy-state protection. Active menu items track external tools and seating/day-pack tabs. The website editor links guest list, invitations and tables; direct invitation navigation scrolls after its asynchronous fields load. Original beforeunload protection remains for separate-page navigation. Desktop sidebar order follows the primary planning tasks. Correct stale README claims about seating and PDF exports.
+
+Validation: 187 backend tests and 3 subtests passed; merge and planning-priority/filter suites passed; v1.6.1 deployment preparation/sequence suite passed (10 tests and 3 subtests). Three served-app browser suites passed against fresh disposable databases with blocked SMTP: grouped-menu scroll restoration, widths 320/390/736/1280 in light/dark, final menu item reachability, internal planner and Hub dirty-form cancellation/confirmation, active tools, direct invitation navigation, and unchanged saved state; existing ten-page, keyboard-height, enlarged text, final Save/Generate clearance, setup, sign-out, linked WBM dialog and guest/day journey checks also passed. Website mobile screenshot inspected. No production records, messages, payments or TrueNAS changes were made. Physical-phone checks remain an installation task.
+
 ## v1.4.0 — couple experience design audit
 
 Built on main 88f69e5955e56868c30a4891f278867eba8a9cf0 (v1.3.2), preserving the newer manual backup, preview/reliability and WBM timing features. Scope: presentation, couple page templates, navigation and version. No schema, account, financial calculation, SMTP or booking integration change.
@@ -98,4 +106,5 @@ Manual PayPal payments now have a reference, frozen terms, an unverified reporti
 The global payment method no longer needs to be changed to satisfy an individual couple's preference. Admin creates a targeted bank/PayPal request, optionally queues email to verified members, and the couple accepts the stored terms before instructions. Bank sort code/account number preserve leading zeros. Bank details are visible to the correct signed-in wedding and authorised admin, not public pages or request emails. Outstanding requests cannot be overwritten with a different method. Verification requires matching GBP funds and a unique bank/PayPal receipt reference; self-reporting remains unverified.
 
 85 backend tests pass, including 16 bank/request cases. Chromium checks cover bank setup, per-couple choice, queued email, conflict prevention, consent, leading-zero display, payment reports, manual activation, and four widths/light/dark without overflow or JavaScript errors. A fake mailbox/backend was used and no real transfer or external email was sent. Real recipient details and actual bank receipt must be checked by the merchant on deployment.
+
 

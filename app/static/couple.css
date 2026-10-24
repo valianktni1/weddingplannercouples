@@ -149,3 +149,25 @@ body.couple-page:has(.couple-app.dark){background:#19251f}
 #ivory-planner.couple-app nav.day-journey button{width:auto;margin:0;display:inline-flex;justify-content:center;text-align:center;border:1px solid var(--p-border)}
 #ivory-planner.couple-app nav.day-journey button.primary{border-color:var(--p-brand)}
 #ivory-planner.couple-app #couple-dock span{white-space:nowrap;word-break:normal;overflow-wrap:normal}
+
+
+/* Grouped navigation: real layout space, readable labels and no fixed overlay. */
+#ivory-planner.couple-app .planner-menu-toggle{display:inline-flex;align-items:center;justify-content:center;gap:9px}
+#ivory-planner.couple-app .planner-menu-toggle svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;flex:none}
+#ivory-planner.couple-app .couple-menu nav.planner-menu-groups{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px 32px;align-items:start}
+#ivory-planner.couple-app .planner-menu-group{min-width:0}
+#ivory-planner.couple-app .planner-menu-group h3{margin:0 0 8px;font-size:21px}
+#ivory-planner.couple-app .couple-menu a{overflow-wrap:normal;word-break:normal;line-height:1.45}
+#ivory-planner.couple-app .couple-menu a span{flex:none}
+#ivory-planner.couple-app .menu-intro{margin:0 0 24px;color:var(--p-secondary)}
+#ivory-planner.couple-app .couple-menu a[aria-current=page]{background:var(--p-soft);border-radius:5px;padding-left:10px;padding-right:10px}
+#ivory-planner.couple-app #guest-invitations{scroll-margin-top:20px}
+@media(max-width:1000px){#ivory-planner.couple-app .couple-menu nav.planner-menu-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#ivory-planner.couple-app .couple-menu nav.planner-menu-groups{grid-template-columns:1fr;gap:28px}}
+
+#ivory-planner.couple-app nav.guest-journey{display:block;background:transparent;border:0;padding:0 0 24px;margin:0;border-bottom:1px solid var(--p-border)}
+#ivory-planner.couple-app nav.guest-journey .actions{display:flex;flex-wrap:wrap;gap:12px}
+#ivory-planner.couple-app nav.guest-journey a{width:auto}
+
+#ivory-planner.couple-app .menu-booking-tools:empty{display:none}
+#ivory-planner.couple-app .menu-booking-tools button{width:100%;margin-top:12px;word-break:normal;overflow-wrap:normal}

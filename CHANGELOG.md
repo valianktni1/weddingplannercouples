@@ -1,3 +1,7 @@
+## v1.6.1 — clearer couple navigation
+
+Group the existing couple tools into Our plans, Our guests, Our website & invitations, Our wedding day and Our settings. Add a labelled three-line Menu button; retain Home/Checklist/Budget/More and all existing routes, editors and linked Mark timing controls. Closing Menu restores the previous scroll position. Highlight the current tool, including Hub tabs, and guard unfinished Hub forms when navigating through Menu. Add a guest-list/website/invitation/table sequence to the website editor. No new stationery or gift features are claimed, and there are no data, payment, email or integration changes.
+
 ## v1.6.0 — Botanical glass finish
 
 - Shared sage/ivory glass presentation across the planner, setup, account/auth and superadmin screens, using a local botanical background and existing dark-mode preference.

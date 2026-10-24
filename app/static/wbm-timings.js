@@ -1,6 +1,6 @@
 /* Explicit photography submission. Never submits on load or on ordinary saves. */
 (async()=>{
- const root=document.querySelector('#ivory-planner'),host=root?.querySelector('.topbar .actions');if(!host||window.ivoryPreview)return;
+ const root=document.querySelector('#ivory-planner'),host=root?.querySelector('#couple-booking-tools')||root?.querySelector('.topbar .actions');if(!host||window.ivoryPreview)return;
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  let status;try{status=await ivory.api('/api/wbm-timings')}catch(_){return}if(!status.linked)return;
  const button=document.createElement('button');button.type='button';button.textContent='Send final timings to Mark';button.className='primary';host.append(button);
@@ -52,3 +52,4 @@
   edit();dialog.showModal();
  }catch(error){window.alert(error.message)}finally{button.disabled=false}};
 })();
+

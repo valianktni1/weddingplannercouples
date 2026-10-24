@@ -14,6 +14,7 @@ try{
  document.getElementById('invitation-guests').innerHTML=plan.state.guests.map(g=>`<label class="check"><input type="checkbox" value="${g.id}"><span>${esc(g.name)} · ${g.attendance}</span></label>`).join('')||'<p>Add guests in your planner first.</p>';
  if(readOnly){status.textContent='Editing access has ended. You can still preview your saved website and export your planner.';form.querySelectorAll('input,textarea,select,button').forEach(e=>e.disabled=true);document.getElementById('create-invite').disabled=true;}
  await listInvites();
+ if(location.hash==='#guest-invitations')document.getElementById('guest-invitations').scrollIntoView({block:'start'});
 }catch(e){status.textContent=e.message}
 form.addEventListener('input',()=>dirty=true);form.addEventListener('change',()=>dirty=true);
 window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue=''}});
@@ -32,3 +33,4 @@ let inviting=false;document.getElementById('create-invite').addEventListener('cl
  }catch(e){status.textContent=e.message}finally{inviting=false;button.disabled=readOnly}});
 document.getElementById('active-invites').addEventListener('click',async e=>{const id=e.target.dataset.revoke;if(!id||!confirm('Revoke this invitation link? Saved replies remain in your guest list.'))return;try{await ivory.api('/api/invitations/'+id+'/revoke',{method:'POST',body:{}});await listInvites();status.textContent='Invitation revoked. Saved guest replies are unchanged.'}catch(err){status.textContent=err.message}});
 })();
+
