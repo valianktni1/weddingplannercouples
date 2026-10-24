@@ -1,3 +1,7 @@
+## v1.8.0 — matching guest invitations and household RSVPs
+
+Add opt-in published stationery snapshots, day/evening guest previews, guest-facing order/venue/arrival/food information, directions and audience-scoped UK calendar files. Keep existing personal links, access-code protection and address aliases. Add household attendance and configured course choices, retained form errors, expired-session CSRF recovery and conflict protection. Collect replies in the original guest fields with separate structured choices, private catering totals/CSV and honest invitation email progress. Two additive tables; no rewrite of existing plans or booking integration. Fix dock reappearance moving a control during a mobile tap. Add the preserving v1.8.0 updater.
+
 ## v1.7.1 — approved stationery compositions
 
 Restore the six approved stationery looks with collection-specific name compositions, accent ampersands, larger botanical artwork, tall meadow flowers, italic details, course headings and monograms. Smooth thick scalloped PNG borders and keep real editable text in matching print PDFs. Include the local OFL italic font and original transparent meadow frame. No draft rewrite, migration or integration change. Add the configuration-preserving v1.7.1 updater.

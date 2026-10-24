@@ -2,14 +2,16 @@
 (()=>{
  const root=document.getElementById('ivory-planner');if(!root?.classList.contains('couple-app'))return;
  const scroll=root.querySelector('.page-content'),menu=root.querySelector('#couple-menu'),dock=root.querySelector('#couple-dock');
- let setup=false,lastPage=null,menuOrigin=null,menuScroll=0,menuWindowScroll=0;
+ let setup=false,lastPage=null,menuOrigin=null,menuScroll=0,menuWindowScroll=0,pointerActive=false;
  const mobile=()=>matchMedia('(max-width:760px)').matches;
  const editing=()=>!!document.activeElement?.matches('textarea,select,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),[contenteditable="true"]');
  function themeLabel(){const button=root.querySelector('[data-theme-toggle]');if(button){button.title=button.textContent;button.setAttribute('aria-label',button.textContent)}}
  function fit(){
   const height=window.visualViewport?.height||window.innerHeight;
   root.style.setProperty('--couple-viewport-height',height+'px');
-  dock.hidden=setup||(mobile()&&editing());
+  // A blur during a tap must not insert the dock between pointer-down and click.
+  // Otherwise a control near the bottom can move away before its tap completes.
+  if(!pointerActive||editing()||!dock.hidden)dock.hidden=setup||(mobile()&&editing());
  }
  function setMenu(open,returnFocus=false){
   const wasOpen=!menu.hidden;
@@ -47,6 +49,8 @@
   fit();
  });
  root.addEventListener('focusin',fit);root.addEventListener('focusout',()=>requestAnimationFrame(fit));
+ root.addEventListener('pointerdown',()=>pointerActive=true,{capture:true});
+ for(const event of ['pointerup','pointercancel'])window.addEventListener(event,()=>{pointerActive=false;requestAnimationFrame(fit)});
  window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);
  function markTool(){
   const key=location.pathname==='/stationery'?'stationery':location.pathname==='/website'?(location.hash==='#guest-invitations'?'invitations':'website'):location.pathname==='/files'?'files':location.pathname==='/upgrade'?'access':location.pathname==='/hub'?(['seating','packs'].includes(location.hash.slice(1))?location.hash.slice(1):'hub'):null;

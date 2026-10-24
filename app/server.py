@@ -22,8 +22,9 @@ from .core import connect, initialise, config, digest, cipher, valid_totp, empty
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
 from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
+from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.7.1'
+VERSION='1.8.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -114,12 +115,19 @@ def create_app(test_config=None):
         cur=db().execute('UPDATE weddings SET state=?,revision=revision+1 WHERE id=? AND revision=?',
             (json.dumps(s),w['id'],expected))
         if not cur.rowcount: abort(409,description='Your partner or an RSVP changed the plan. Reload before saving so nobody’s changes are lost.')
+        remaining={guest['id'] for guest in s['guests']}
+        for row in db().execute('SELECT guest_id FROM guest_replies WHERE wedding_id=?',(w['id'],)).fetchall():
+            if row['guest_id'] not in remaining:db().execute('DELETE FROM guest_replies WHERE wedding_id=? AND guest_id=?',(w['id'],row['guest_id']))
         hub_notify(w['id'])
 
     @app.before_request
     def before():
         g.cookie=None;g.user=None
         if request.path.startswith('/static/') or request.path=='/healthz': return
+        if request.path.startswith('/weddings/'):
+            request.max_content_length=512000
+            request.max_form_memory_size=512000
+            request.max_form_parts=500
         if request.path.startswith('/api/integrations/control-centre/'):
             from .control_centre import authorise
             authorise()
@@ -356,7 +364,7 @@ def create_app(test_config=None):
     @app.get('/api/export')
     @auth()
     def export():
-        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],exported=time.time())
+        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],guest_replies=[dict(r)|{'choices':json.loads(r['choices'])} for r in db().execute('SELECT guest_id,choices,meal,replied FROM guest_replies WHERE wedding_id=?',(w['id'],))],exported=time.time())
     @app.get('/website')
     @auth()
     def website_editor(): wedding();return render_template('website_editor.html')
@@ -432,6 +440,7 @@ def create_app(test_config=None):
         if type(body.get('revision')) is not int or body['revision']!=w['site_revision']:
             abort(409,description='Your partner changed the website. Your typed changes are still here; copy them before reloading.')
         if not isinstance(site,dict) or len(json.dumps(site))>30000: raise ValueError('Website details are too large.')
+        guest_fields=validate_guest_fields(site,json.loads(w['site']),db(),w['id'])
         allowed={'published','title','intro','date','ceremony','reception','travel','accommodation','dress','faq','gift_url','cover','theme'}
         site={k:site.get(k,'') for k in allowed}
         if type(site['published']) is not bool: raise ValueError('Choose draft or published.')
@@ -443,6 +452,8 @@ def create_app(test_config=None):
         if site['gift_url'] and not site['gift_url'].startswith('https://'): raise ValueError('Gift links must start with https://.')
         if site['cover'] and not db().execute('SELECT 1 FROM uploads WHERE id=? AND wedding_id=? AND kind="cover"',(site['cover'],w['id'])).fetchone(): raise ValueError('Select a cover uploaded to your wedding.')
         if site['theme'] not in ['garden','classic','modern']: site['theme']='garden'
+        site.update(guest_fields)
+        if site['published'] and any(d['date']!=site['date'] for d in site.get('_designs',{}).values()):raise ValueError('Your stationery and website dates differ. Update the saved invitations, then choose to replace the published designs.')
         existing=db().execute('SELECT wedding_id FROM website_slugs WHERE slug=? AND wedding_id!=?',(slug,w['id'])).fetchone()
         if existing: raise ValueError('That wedding address is already taken.')
         code=body.get('access_code')
@@ -462,7 +473,7 @@ def create_app(test_config=None):
     @auth()
     def preview_website():
         w=wedding();site=json.loads(w['site'])
-        return render_template('wedding.html',site=site,slug=w['slug'],invitation=None,guests=[],preview=True,preview_cover=site.get('cover'))
+        return guest_tools.render(w,w['slug'],preview=True)
     def site_unlocked(w):
         if not w['code_hash']: return True
         value=request.cookies.get('site_'+w['id'],'')
@@ -478,26 +489,41 @@ def create_app(test_config=None):
                     resp=redirect('/weddings/'+slug);resp.set_cookie('site_'+w['id'],value,max_age=86400,httponly=True,samesite='Lax',secure=app.config['SECURE_COOKIES']);return resp
                 raise ValueError('That access code did not match.')
             return render_template('site_code.html')
-        return render_template('wedding.html',site=json.loads(w['site']),slug=slug,invitation=None,guests=[])
+        return guest_tools.render(w,slug)
     @app.post('/api/invitations')
     @auth()
     def invitations():
         w=wedding(True);body=json_body();ids=body.get('guest_ids',[]);s=json.loads(w['state']);guests={x['id']:x for x in s['guests']}
-        if not ids or len(ids)>30 or len(set(ids))!=len(ids) or any(i not in guests for i in ids): raise ValueError('Select the individual guests on this invitation.')
+        if not isinstance(ids,list) or not ids or len(ids)>30 or any(not isinstance(i,str) for i in ids) or len(set(ids))!=len(ids) or any(i not in guests for i in ids): raise ValueError('Select the individual guests on this invitation.')
         if not w['slug'] or not json.loads(w['site']).get('published'): raise ValueError('Publish your wedding website first.')
         invite=token('rsvp',wedding=w['id'],payload={'guest_ids':ids},hours=24*365*4)
         link=app.config['APP_URL']+'/weddings/'+w['slug']+'/invite/'+invite
-        email=body.get('email','').strip().lower()
+        email=body.get('email','')
+        if not isinstance(email,str):raise ValueError('Check the invitation email.')
+        email=email.strip().lower()
+        mail_id=None
         if email:
             if not valid_email(email): raise ValueError('Check the invitation email.')
-            queue(email,'Your wedding invitation',link)
+            site=json.loads(w['site']);subject='Your invitation · '+re.sub(r'[\r\n]+',' ',site.get('title','Our wedding'))[:150]
+            mail_id=queue(email,subject,site.get('title','Our wedding')+'\n\nYou’re invited! Open your personal invitation to see the details and reply for everyone included.\n\n'+link+'\n\nPlease keep this link private. You do not need an account to reply.',html_body=render_template('guest_invitation_email.html',site=site,link=link,names=[guests[i]['name'] for i in ids]))
+        db().execute('INSERT INTO guest_invitation_activity VALUES(?,?,?,?)',(digest(invite),w['id'],time.time(),mail_id))
         audit('Guest invitation created',w['id']);return jsonify(url=link,queued=bool(email))
     @app.get('/api/invitations')
     @auth()
     def invitation_list():
-        w=wedding();state=json.loads(w['state']);names={x['id']:x['name'] for x in state['guests']};rows=[]
+        w=wedding();state=json.loads(w['state']);names={x['id']:x['name'] for x in state['guests']};guests_by_id={g['id']:g for g in state['guests']};rows=[]
+        activities={r['token_hash']:r for r in db().execute('SELECT a.token_hash,a.created,a.mail_id,m.status,m.accepted_at FROM guest_invitation_activity a LEFT JOIN mail m ON m.id=a.mail_id WHERE a.wedding_id=?',(w['id'],))}
         for t in db().execute('SELECT * FROM tokens WHERE kind="rsvp" AND wedding_id=? ORDER BY expires DESC',(w['id'],)):
-            rows.append({'id':t['hash'],'names':[names.get(i,'Guest removed') for i in json.loads(t['payload'])['guest_ids']], 'active':not t['used'] and t['expires']>time.time(),'expires':t['expires']})
+            ids=json.loads(t['payload'])['guest_ids'];linked=[guests_by_id[i] for i in ids if i in guests_by_id]
+            activity=activities.get(t['hash']);mail_status='Email status not recorded'
+            if activity:
+                if activity['accepted_at']:mail_status='Accepted by mail server'
+                elif not activity['mail_id']:mail_status='Link to share yourself'
+                else:mail_status={'queued':'Queued','retry':'Retrying email','failed':'Email needs attention','cancelled':'Email cancelled'}.get(activity['status'],'Email status not recorded')
+            rows.append({'id':t['hash'],'names':[names.get(i,'Guest removed') for i in ids], 'active':not t['used'] and t['expires']>time.time(),'expires':t['expires'],
+                         'reply_status':'Replied' if linked and all(g['rsvp']!='Waiting' for g in linked) else 'Partly replied' if any(g['rsvp']!='Waiting' for g in linked) else 'Awaiting replies',
+                         'waiting':[g['name'] for g in linked if g['rsvp']=='Waiting'],'created':activity['created'] if activity else None,
+                         'mail_status':mail_status,'mail_accepted_at':activity['accepted_at'] if activity else None})
         return jsonify(invitations=rows)
     @app.post('/api/invitations/<tid>/revoke')
     @auth()
@@ -507,26 +533,7 @@ def create_app(test_config=None):
         audit('Guest invitation revoked',w['id']);return jsonify(ok=True)
     @app.route('/weddings/<slug>/invite/<value>',methods=['GET','POST'])
     def rsvp(slug,value):
-        w=public_wedding(slug);t=token_row(value,'rsvp')
-        if not t or t['wedding_id']!=w['id']: abort(404)
-        ids=json.loads(t['payload'])['guest_ids'];s=json.loads(w['state']);guests=[x for x in s['guests'] if x['id'] in ids]
-        if not guests: abort(404)
-        if request.method=='POST':
-            rate('rsvp-'+t['hash'],30)
-            errors=[]
-            for guest in guests:
-                prefix=guest['id']+'-';answer=request.form.get(prefix+'rsvp','')
-                if answer not in ['Accepted','Declined']: errors.append('Please reply for each person.');answer='Waiting'
-                guest['rsvp']=answer
-                for key in ['meal','diet','access']:
-                    v=request.form.get(prefix+key,'').strip()
-                    if len(v)>160: errors.append('Please keep each answer to 160 characters.');v=v[:160]
-                    guest[key]=v
-            if errors:
-                return render_template('wedding.html',site=json.loads(w['site']),slug=slug,invitation=value,guests=guests,error=errors[0]),400
-            update_state(w,s,w['revision']);audit('Guest RSVP submitted',w['id'])
-            return render_template('message.html',title='Thank you!',message='Your reply has been saved for the couple. You can use your invitation link to update it.')
-        return render_template('wedding.html',site=json.loads(w['site']),slug=slug,invitation=value,guests=guests)
+        return guest_tools.respond(slug,value)
 
     def attachment_path(f):
         return Path(app.config['DATA_DIR'])/'files'/f['wedding_id']/Path(f['path']).name
@@ -569,6 +576,7 @@ def create_app(test_config=None):
         w=wedding(True);f=db().execute('SELECT * FROM uploads WHERE id=? AND wedding_id=?',(uid,w['id'])).fetchone()
         if not f: abort(404)
         if json.loads(w['site']).get('cover')==uid: raise ValueError('Remove this cover from the website before deleting it.')
+        if any(d.get('photo')==uid for d in json.loads(w['site']).get('_designs',{}).values()):raise ValueError('Remove this photograph from your published invitation designs before deleting it.')
         if any(json.loads(r['data']).get('photo')==uid for r in db().execute('SELECT data FROM stationery_drafts WHERE wedding_id=?',(w['id'],))): raise ValueError('Remove this photograph from your stationery drafts before deleting it.')
         db().execute('DELETE FROM uploads WHERE id=?',(uid,));g.on_commit=getattr(g,'on_commit',[])
         g.on_commit.append(lambda:attachment_path(f).unlink(missing_ok=True));return jsonify(ok=True)
@@ -1211,6 +1219,7 @@ def create_app(test_config=None):
         db().execute('INSERT INTO webhook_events VALUES(?,?)',(eid,time.time()));return jsonify(ok=True)
     from .wbm_timings import register_wbm_timings
     register_wbm_timings(app,db,auth,wedding,json_body,audit)
+    guest_tools=GuestExperience(app,db,auth,wedding,public_wedding,token_row,rate,update_state,audit)
     hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
     from .stationery import register_stationery
     register_stationery(app,db,auth,wedding,json_body,audit,rate)

@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.7.1
+# Ivory Digital Wedding Planner — v1.8.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -615,3 +615,25 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The updater retains installation settings, backs up data and tests recovery before restarting only the planner.
+
+
+## Guest invitations & RSVP journey — v1.8.0
+
+Open **Menu → Our website & invitations**. Add guests in the existing guest list, set website details, then preview as a day guest and an evening guest before sharing personal links. A household link includes the selected individuals, each with their own Day/Evening status. No guest account or second QR code is required. Existing personal invitation addresses and old website address aliases remain valid unless revoked, unpublished, suspended or expired.
+
+Matching stationery is opt-in. Save a day/evening invitation in Our stationery, enable matching designs and save the website. This publishes a snapshot of its editable wording, artwork and selected photo for the corresponding guest audience. Per-recipient names are excluded. Changing a stationery draft does not silently change the published snapshot; deliberately tick Replace with latest and save when ready. Preview both audiences. Missing invitation types use the ordinary website information. Stationery/website dates must agree when publishing.
+
+Publish separate day/evening arrival, venue and order information, optional finish time, food/drinks/evening-food details and an RSVP date. Personal evening links exclude day-only fields and cannot fetch day invitation images or calendar files. General public wedding pages retain their existing information behaviour: use the website access code when ceremony details must not be public. Travel/accommodation/FAQ/dress/gift links remain. Directions open a map search; calendar downloads are standard ICS using UK local times converted to UTC, with next-day finishes where needed. An RSVP date is a request, not an automatic lockout.
+
+Meal courses support up to six courses with 1–12 choices each for Day, Evening or All guests. Each attending guest chooses their courses; declined guests are excluded from catering totals. Legacy free-text meal preferences still work where no courses are set. Replies update the original guest RSVP/meal/diet/access fields and separately retain structured choices. Unrelated partner edits are preserved, stale household/menu replies are rejected, validation retains form answers, and mobile JavaScript refreshes an expired anonymous CSRF session before submitting without losing wording. Guest links remain private household links: anyone holding that link can view or update that invitation.
+
+Replies & catering shows day/evening counts, names awaiting replies, course totals and missing/current-choice review counts, plus a private CSV with dietary/access answers. If a menu option is removed, or a meal is manually changed outside structured replies, totals flag the guest for review instead of guessing. Recheck requirements with the caterer. The CSV includes personal data and should be shared only as needed. Invitation email status distinguishes Queued, Retrying, Accepted by mail server and failures; it does not claim delivery. Existing older links show unknown email history honestly.
+
+Two additive tables retain structured replies and invitation creation/mail references. The original planner-state shape and booking integrations are unchanged. Replies are included in full private exports and normal database backups; removing a guest removes their structured reply record. Published invitation photos cannot be deleted until removed from the published design. No automatic reminder campaign or live email was sent during development.
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v180.sh
+```
+
+The updater preserves installation configuration and port 30063, backs up data, rehearses recovery in isolation, and prints rollback instructions before restarting only the planner.

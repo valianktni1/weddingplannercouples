@@ -108,6 +108,8 @@ def initialise(data_dir):
         db.executescript(HUB_SCHEMA)
         from .stationery import SCHEMA as STATIONERY_SCHEMA
         db.executescript(STATIONERY_SCHEMA)
+        from .guest_experience import SCHEMA as GUEST_SCHEMA
+        db.executescript(GUEST_SCHEMA)
         from .wbm_timings import SCHEMA as WBM_TIMINGS_SCHEMA
         db.executescript(WBM_TIMINGS_SCHEMA)
         if 'html_body' not in {r['name'] for r in db.execute('PRAGMA table_info(mail)')}:
