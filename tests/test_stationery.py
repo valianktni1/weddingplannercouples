@@ -174,3 +174,54 @@ def test_editorial_and_meadow_keep_distinct_names_and_accent_in_real_exports():
         extracted=PdfReader(io.BytesIO(draw_pdf([p]))).pages[0].extract_text()
         assert all(word in extracted for word in ('Emma','Jamie'))
         assert draw_png(p,400).startswith(b'\x89PNG')
+
+
+def test_legacy_photo_drafts_keep_framing_and_revision(app):
+    c=login(app);d,data=save_design(c)
+    # Simulate the actual JSON stored before positioning controls existed.
+    for key in ('photo_x','photo_y','photo_zoom'):data.pop(key)
+    data['photo_focus']='bottom'
+    db=database(app);db.execute('UPDATE stationery_drafts SET data=? WHERE wedding_id="wu1" AND kind="day"',(json.dumps(data),));db.commit();db.close()
+    current=context(c)['drafts']['day']
+    assert current['revision']==d['revision']
+    assert [float(current['data'][k]) for k in ('photo_x','photo_y','photo_zoom')]==[50,100,1]
+    assert export(c,'day',d).status_code==200
+    # An older open browser may still submit only the legacy fields.
+    assert c.post('/api/stationery/day/preview',json={'data':data},headers=headers(c)).status_code==200
+
+
+@pytest.mark.parametrize('key,value',[('photo_x','-1'),('photo_x','101'),('photo_y','nan'),('photo_y','inf'),('photo_zoom','0'),('photo_zoom','3.01'),('photo_zoom',2),('photo_x',None)])
+def test_invalid_photo_geometry_is_rejected(key,value):
+    from app.core import empty_state
+    config=defaults(empty_state(),'day');config[key]=value
+    with pytest.raises(ValueError,match='position and zoom'):validate(config,'day')
+
+
+def test_crop_geometry_and_legacy_presets():
+    from PIL import ImageOps,ImageChops,ImageStat
+    from app.stationery import crop_photo
+    from app.core import empty_state
+    # Asymmetric image exposes both axes, zoom and edge behaviour.
+    image=Image.new('RGB',(360,480));image.putdata([(x%256,y%256,(x+y)%256) for y in range(480) for x in range(360)])
+    config=defaults(empty_state(),'day')
+    for key in ('photo_x','photo_y','photo_zoom'):config.pop(key)
+    for focus,y in [('top',0),('centre',.5),('bottom',1)]:
+        config['photo_focus']=focus
+        actual=crop_photo(image,(300,160),config)
+        old=ImageOps.fit(image,(300,160),method=Image.Resampling.LANCZOS,centering=(.5,y))
+        assert max(ImageStat.Stat(ImageChops.difference(actual,old)).mean)<.1
+    config.update(photo_x='100',photo_y='100',photo_zoom='2')
+    cropped=crop_photo(image,(300,160),config)
+    assert cropped.getpixel((150,80))!=crop_photo(image,(300,160),dict(config,photo_x='0',photo_y='0')).getpixel((150,80))
+
+
+@pytest.mark.parametrize('kind',['day','evening','save_date','welcome','thanks'])
+def test_photo_position_survives_save_preview_and_both_exports(app,kind):
+    c=login(app);original=c.get('/api/state').json;out=io.BytesIO();image=Image.new('RGB',(600,800),'green');image.paste('red',(300,0,600,400));image.save(out,'JPEG')
+    uploaded=c.post('/api/files',data={'kind':'cover','file':(io.BytesIO(out.getvalue()),'portrait.jpg')},headers=headers(c));assert uploaded.status_code==200
+    d,data=save_design(c,kind,{'collection':'photo','palette':'neutral','photo':uploaded.json['id'],'photo_x':'83','photo_y':'24','photo_zoom':'1.75'})
+    current=context(c)['drafts'][kind]['data']
+    assert [float(current[k]) for k in ('photo_x','photo_y','photo_zoom')]==[83,24,1.75]
+    preview=c.post('/api/stationery/'+kind+'/preview',json={'data':current},headers=headers(c));assert preview.status_code==200 and not preview.json['issues']
+    for fmt in ('pdf','png'):assert export(c,kind,d,format=fmt).status_code==200
+    assert c.get('/api/state').json==original

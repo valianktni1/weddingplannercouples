@@ -24,7 +24,7 @@ from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.9.0'
+VERSION='1.9.1'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),

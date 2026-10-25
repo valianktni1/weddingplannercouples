@@ -1,3 +1,9 @@
+## v1.9.1 — upload and position Photo Story photographs
+
+Upload a private JPEG, PNG or WebP directly in the stationery editor using the existing authenticated upload service. Preserve unsaved wording on success and upload failure. Add an instant crop view with drag, horizontal/vertical sliders, zoom, reset and the original crop presets. Apply the saved framing to the full design preview, sharing image and print PDF for day/evening invitations, save-the-dates, welcome signs and thank-you cards.
+
+Read legacy saved drafts and requests without changing their framing, revision or stored data. Keep ownership checks, upload limits, read-only access and partner-conflict guards. No schema migration, new dependency or wedding-plan/website changes. The v1.9.1 updater uses the existing configuration-preserving backup, isolated recovery rehearsal and rollback procedure.
+
 ## v1.9.0 — bespoke stationery and trial interest
 
 Add the separately paid £199 complete bespoke digital stationery service to complimentary and paid couple accounts. Private briefs and inspiration uploads, quote acceptance, nine editable designer-pack items, one combined revision, repeated baked-in low-resolution proof watermarks, whole-set approval and manually checked bank/PayPal receipts provide an explicit order journey. Clean print PDFs and sharing images require both verified payment and current approval. Guest/table updates are free within the approved design, including a separate printing list after planner editing access ends. Keep receipts across corrections, expose unresolved problems, and provide editable reviewed client emails and a separate sales export. Back up and restore private artwork with relative paths.

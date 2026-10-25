@@ -1,3 +1,14 @@
+v1.9.1 — Photo Story editor verification (25 October 2026)
+
+- Full Python suite: 261 passed, 3 subtests passed.
+- deploy-v191.sh release preparation/sequence checks: 10 passed, 3 subtests passed; backup/build/restore failures do not restart or replace configuration.
+- New real-browser workflow passed: in-editor image upload; wording preservation; live sliders and drag; original presets/reset; failed upload recovery; 320/390/736/1280px light/dark layouts; saved crop reload; real PDF/PNG downloads; unchanged wedding plans/website state.
+- Existing real-browser stationery workflow passed: six collections, nine kinds, actual previews/PDF/PNG, folded batch place cards, mobile controls, unsaved-work guard and partner-conflict recovery.
+- Legacy saved fields/requests preserve top/centre/bottom framing without rewriting stored drafts or revisions. Position/zoom validation rejects invalid geometry. All five photo-bearing item types save, preview and export.
+- JavaScript/Python/shell syntax and git diff whitespace checks passed. Mobile crop editor screenshot inspected.
+
+All checks used disposable local sample accounts/data with outbound SMTP blocked for browser QA. No live data or production deployment was accessed. TrueNAS updater execution and live-device verification remain deployment steps.
+
 Ivory Wedding Planner v1.5.1 — mobile admin action layout, 22 October 2026
 
 Browser checks passed using production admin.js, style.css and admin.css with mocked account metadata and all external requests blocked: journey/account rows stack full-width buttons at phone widths, labels use natural word boundaries, controls are at least 48px tall and remain inside their group, no page overflow at widths 320/360/390/480/600/760/768/1280 in light/dark, and 24px text remains usable. Backup/support panel layouts were checked. Manage access, request payment and cancel-invitation confirmation views open normally; no mutations or messages were sent. The fixed mobile screenshot was inspected. The authenticated admin template alone loads the scoped admin stylesheet. Other templates and admin.js are unchanged. Ten deployment tests passed for deploy-v151.sh with simulated Docker calls; shell/JS syntax checks passed. Application server change is the version string only. No database or couple-data change. Actual NAS build and archive restore remain deployment steps; the prior v1.5.0 full Python suite passed 183 tests.

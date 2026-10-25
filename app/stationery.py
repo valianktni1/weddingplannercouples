@@ -73,13 +73,14 @@ def defaults(state,kind):
             'intro':'Together with their families','message':'invite you to celebrate their wedding' if kind=='day' else 'invite you to their evening celebration' if kind=='evening' else 'Please save the date' if kind=='save_date' else 'Thank you for being part of our day.' if kind=='thanks' else '',
             'arrival':'','closing':'Reception and celebrations to follow' if kind=='day' else '',
             'recipient':'','menu':'',
-            'photo':'','photo_mode':'colour','photo_focus':'centre','guest_scope':'accepted','guest_id':'','table_name':''}
+            'photo':'','photo_mode':'colour','photo_focus':'centre','photo_x':'50','photo_y':'50','photo_zoom':'1','guest_scope':'accepted','guest_id':'','table_name':''}
 
 
 def validate(value,kind):
     if not isinstance(value,dict):raise ValueError('Choose your stationery details.')
     allowed={'collection':24,'palette':24,'size':16,'names':220,'date':10,'venue':180,'intro':160,'message':500,'arrival':160,'closing':240,'recipient':160,'menu':1800,'photo':64,'photo_mode':16,'photo_focus':16,'guest_scope':20,'guest_id':64,'table_name':100}
-    if set(value)!=set(allowed):raise ValueError('Reload the stationery page to use the current fields.')
+    crop_fields={'photo_x','photo_y','photo_zoom'}
+    if set(value)-crop_fields!=set(allowed):raise ValueError('Reload the stationery page to use the current fields.')
     result={}
     for key,limit in allowed.items():
         v=value[key]
@@ -92,7 +93,28 @@ def validate(value,kind):
         try:date.fromisoformat(result['date'])
         except ValueError:raise ValueError('Check the wedding date.')
     if result['guest_scope'] not in ('accepted','invited') or result['photo_mode'] not in ('colour','mono') or result['photo_focus'] not in ('centre','top','bottom'):raise ValueError('Check guest and photo choices.')
+    # Older clients and saved drafts keep their original top/centre/bottom framing.
+    for key,default,low,high in [('photo_x','50',0,100),('photo_y',{'top':'0','centre':'50','bottom':'100'}[result['photo_focus']],0,100),('photo_zoom','1',1,3)]:
+        v=value.get(key,default)
+        try:
+            if not isinstance(v,str) or len(v)>16:raise ValueError()
+            number=float(v)
+            if not math.isfinite(number) or not low<=number<=high:raise ValueError()
+        except (TypeError,ValueError):raise ValueError('Check photograph position and zoom.')
+        result[key]=str(number)
     return result
+
+
+def crop_photo(photo,target,config):
+    """Use the same cover crop geometry for preview, PNG and print PDF."""
+    x=float(config.get('photo_x',50))/100
+    y=float(config.get('photo_y',{'top':0,'centre':50,'bottom':100}[config['photo_focus']]))/100
+    zoom=float(config.get('photo_zoom',1))
+    ratio=target[0]/target[1]
+    cw=min(photo.width,photo.height*ratio)/zoom
+    ch=cw/ratio
+    left=(photo.width-cw)*x;top=(photo.height-ch)*y
+    return photo.resize(target,Image.Resampling.LANCZOS,box=(left,top,left+cw,top+ch))
 
 
 def selected_guests(state,config):
@@ -253,7 +275,7 @@ def build_layout(config,kind,state,photo=None,guest=None,table=None):
     if has_photo and photo is not None:
         art=photo
         if config['photo_mode']=='mono':art=ImageOps.grayscale(photo).convert('RGB')
-        ph=h*(.58 if kind=='welcome' else .47);target=(max(1,int(w*4)),max(1,int(ph*4)));art=ImageOps.fit(art,target,method=Image.Resampling.LANCZOS,centering=(.5,{'top':0,'centre':.5,'bottom':1}[config['photo_focus']]))
+        ph=h*(.58 if kind=='welcome' else .47);target=(max(1,int(w*4)),max(1,int(ph*4)));art=crop_photo(art,target,config)
         p.image(art,0,h*.42 if kind=='welcome' else 0,w,ph)
     if has_photo and photo is None:
         photo_y=h*.42 if kind=='welcome' else 0;photo_h=h*.58 if kind=='welcome' else h*.47
@@ -471,7 +493,7 @@ def register_stationery(app,db,auth,wedding,json_body,audit,rate):
         w=wedding();state=json.loads(w['state']);drafts={}
         for kind in KINDS:
             row=existing(w['id'],kind);current=source(state,kind)
-            drafts[kind]={'data':json.loads(row['data']) if row else defaults(state,kind),'revision':row['revision'] if row else 0,'source':current,'review_needed':bool(row and row['source_hash']!=current),'download_outdated':bool(row and row['exported_at'] and (row['exported_source']!=current or row['exported_revision']!=row['revision'])),'exported_at':row['exported_at'] if row else None}
+            drafts[kind]={'data':validate(json.loads(row['data']),kind) if row else defaults(state,kind),'revision':row['revision'] if row else 0,'source':current,'review_needed':bool(row and row['source_hash']!=current),'download_outdated':bool(row and row['exported_at'] and (row['exported_source']!=current or row['exported_revision']!=row['revision'])),'exported_at':row['exported_at'] if row else None}
         return jsonify(collections=COLLECTIONS,kinds=KINDS,sizes={k:{'name':LABELS.get(k,k),'mm':v} for k,v in SIZES.items()},drafts=drafts,defaults={k:defaults(state,k) for k in KINDS},guests=[{k:g[k] for k in ('id','name','table','rsvp')} for g in state['guests']],photos=[dict(r) for r in db().execute('SELECT id,name FROM uploads WHERE wedding_id=? AND kind="cover"',(w['id'],))],readonly=w['access_until']<date.today().isoformat())
     @app.get('/api/stationery/collections/<collection>.png')
     @auth()

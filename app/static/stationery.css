@@ -25,3 +25,10 @@
 @media(max-width:900px){#ivory-planner.couple-app .stationery-collections,#ivory-planner.couple-app .stationery-items{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#ivory-planner.couple-app .stationery-edit{grid-template-columns:1fr}#ivory-planner.couple-app .collection-card img{height:220px}#ivory-planner.couple-app .stationery-preview{padding:14px}#ivory-planner.couple-app .stationery-edit form{padding:18px}}
 @media(max-width:420px){#ivory-planner.couple-app .stationery-collections,#ivory-planner.couple-app .stationery-items{grid-template-columns:1fr}#ivory-planner.couple-app .collection-card img{height:300px}}
+#ivory-planner.couple-app .stationery-crop{min-width:0;margin:20px 0;padding:14px;border:1px solid var(--p-border);border-radius:10px}
+#ivory-planner.couple-app .stationery-crop canvas{display:block;width:100%;height:auto;touch-action:none;cursor:grab;border:1px solid var(--p-border);border-radius:6px}
+#ivory-planner.couple-app .stationery-crop canvas:active{cursor:grabbing}
+#ivory-planner.couple-app .stationery-crop input[type=range]{width:100%;min-width:0;min-height:44px;padding:0;accent-color:var(--p-brand)}
+#ivory-planner.couple-app .stationery-crop output{float:right;color:var(--p-secondary)}
+#ivory-planner.couple-app #stationery-photo-upload{width:100%;min-width:0;max-width:100%}
+#ivory-planner.couple-app .stationery-crop p{font-size:15px}
