@@ -110,6 +110,13 @@ def initialise(data_dir):
         db.executescript(STATIONERY_SCHEMA)
         from .guest_experience import SCHEMA as GUEST_SCHEMA
         db.executescript(GUEST_SCHEMA)
+        from .trial_interest import SCHEMA as INTEREST_SCHEMA
+        db.executescript(INTEREST_SCHEMA)
+        from .bespoke import SCHEMA as BESPOKE_SCHEMA
+        db.executescript(BESPOKE_SCHEMA)
+        bespoke_columns={r['name'] for r in db.execute('PRAGMA table_info(bespoke_orders)')}
+        if 'attention' not in bespoke_columns:db.execute('ALTER TABLE bespoke_orders ADD COLUMN attention INTEGER NOT NULL DEFAULT 0')
+        if 'roster' not in bespoke_columns:db.execute('ALTER TABLE bespoke_orders ADD COLUMN roster TEXT')
         from .wbm_timings import SCHEMA as WBM_TIMINGS_SCHEMA
         db.executescript(WBM_TIMINGS_SCHEMA)
         if 'html_body' not in {r['name'] for r in db.execute('PRAGMA table_info(mail)')}:

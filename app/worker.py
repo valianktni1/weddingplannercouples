@@ -25,7 +25,9 @@ def backup(data_dir=DATA,backup_dir=BACKUPS):
             temp=Path(temp);(temp/'files').mkdir()
             lock.execute('BEGIN IMMEDIATE')
             snap=connect(temp/'planner.sqlite3');source=connect(data_dir/'planner.sqlite3');source.backup(snap);source.close()
-            references=snap.execute('SELECT wedding_id,path FROM uploads').fetchall();snap.close()
+            references=snap.execute('SELECT wedding_id,path FROM uploads').fetchall()
+            bespoke=snap.execute('SELECT path FROM bespoke_assets').fetchall() if snap.execute('SELECT 1 FROM sqlite_master WHERE name="bespoke_assets"').fetchone() else []
+            snap.close()
             shutil.copy2(data_dir/'app-secret',temp/'app-secret')
             for row in references:
                 original=data_dir/'files'/row['wedding_id']/Path(row['path']).name
@@ -33,6 +35,12 @@ def backup(data_dir=DATA,backup_dir=BACKUPS):
                 destination.parent.mkdir(parents=True,exist_ok=True)
                 try: os.link(original,destination)
                 except OSError: shutil.copy2(original,destination)
+            for row in bespoke:
+                relative=Path(row['path']);original=(data_dir/'files'/relative).resolve()
+                if relative.is_absolute() or not original.is_relative_to((data_dir/'files').resolve()):raise ValueError('Invalid bespoke file path in backup.')
+                destination=temp/'files'/relative;destination.parent.mkdir(parents=True,exist_ok=True)
+                try:os.link(original,destination)
+                except OSError:shutil.copy2(original,destination)
             lock.rollback()
             stamp=datetime.now().strftime('%Y%m%d-%H%M%S-%f');target=backup_dir/('planner-'+stamp+'.tar.gz')
             pending=backup_dir/('.'+target.name+'.partial')
@@ -58,6 +66,7 @@ def enqueue(db,to,subject,body,dedupe):
         (secrets.token_hex(12),to,subject,body,dedupe,time.time()))
 
 def schedule(db,settings,now):
+    db.execute("DELETE FROM trial_interest WHERE created<?",(now.timestamp()-180*86400,))
     local=now.astimezone(ZoneInfo(settings['timezone']))
     today=local.date()
     for w in db.execute('SELECT * FROM weddings WHERE suspended=0 AND access_until>=?',((today-timedelta(days=1)).isoformat(),)):
@@ -171,5 +180,6 @@ def run():
         time.sleep(30)
 
 if __name__=='__main__': run()
+
 
 

@@ -25,7 +25,7 @@
       <a href="/website" data-couple-route="website">Edit & preview our website<span aria-hidden="true">›</span></a>
       <a href="/website#guest-invitations" data-couple-route="invitations">Guest invitation links<span aria-hidden="true">›</span></a>
     </section>{% endif %}
-    {% if not preview_state %}<section class="planner-menu-group"><h3>Our stationery</h3><a href="/stationery" data-couple-route="stationery">Invitations & matching stationery<span aria-hidden="true">›</span></a></section>{% endif %}
+    {% if not preview_state %}<section class="planner-menu-group"><h3>Our stationery</h3><a href="/stationery" data-couple-route="stationery">Invitations & matching stationery<span aria-hidden="true">›</span></a><a href="/bespoke" data-couple-route="bespoke">Made for us · bespoke set<span aria-hidden="true">›</span></a></section>{% endif %}
     <section class="planner-menu-group"><h3>Our wedding day</h3>
       {% for key,label in [('day','Build our timings'),('test','Check our timings'),('final','Review & export')] %}
       <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>{% endfor %}

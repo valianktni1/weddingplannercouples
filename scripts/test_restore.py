@@ -52,6 +52,11 @@ def restore(archive, scratch):
             if not (root / 'files' / wedding / Path(path).name).is_file():
                 raise ValueError('A couple file referenced by the database is missing.')
             files += 1
+        if db.execute('SELECT 1 FROM sqlite_master WHERE name="bespoke_assets"').fetchone():
+            for (path,) in db.execute('SELECT path FROM bespoke_assets'):
+                relative=Path(path);candidate=(root/'files'/relative).resolve()
+                if relative.is_absolute() or not candidate.is_relative_to(root/'files') or not candidate.is_file():raise ValueError('A private bespoke file is missing or unsafe.')
+                files+=1
     finally:
         db.close()
     # The recovered key and database must also boot the real application.
@@ -87,3 +92,4 @@ if __name__ == '__main__':
     except (OSError, ValueError, sqlite3.Error, tarfile.TarError) as error:
         print(f'Isolated restore failed: {error}', file=sys.stderr)
         raise SystemExit(1)
+

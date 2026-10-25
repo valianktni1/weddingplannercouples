@@ -53,7 +53,7 @@
  for(const event of ['pointerup','pointercancel'])window.addEventListener(event,()=>{pointerActive=false;requestAnimationFrame(fit)});
  window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);
  function markTool(){
-  const key=location.pathname==='/stationery'?'stationery':location.pathname==='/website'?(location.hash==='#guest-invitations'?'invitations':'website'):location.pathname==='/files'?'files':location.pathname==='/upgrade'?'access':location.pathname==='/hub'?(['seating','packs'].includes(location.hash.slice(1))?location.hash.slice(1):'hub'):null;
+  const key=location.pathname==='/bespoke'?'bespoke':location.pathname==='/stationery'?'stationery':location.pathname==='/website'?(location.hash==='#guest-invitations'?'invitations':'website'):location.pathname==='/files'?'files':location.pathname==='/upgrade'?'access':location.pathname==='/hub'?(['seating','packs'].includes(location.hash.slice(1))?location.hash.slice(1):'hub'):null;
   root.querySelectorAll('[data-couple-route]').forEach(a=>{if(a.dataset.coupleRoute===key)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
  }
  window.addEventListener('hashchange',markTool);root.addEventListener('ivory:hub-page',markTool);markTool();

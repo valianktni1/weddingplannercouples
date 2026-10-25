@@ -375,7 +375,7 @@ def placecard_sheets(cards):
 
 
 def draw_pdf(layouts,bleed=0):
-    out=io.BytesIO();b=bleed*MM;c=canvas.Canvas(out,pagesize=(layouts[0].w+2*b,layouts[0].h+2*b),pageCompression=1,initialFontName='StationerySerif')
+    out=io.BytesIO();b=bleed*MM;readers={};c=canvas.Canvas(out,pagesize=(layouts[0].w+2*b,layouts[0].h+2*b),pageCompression=1,initialFontName='StationerySerif')
     c.setTitle('Wedding stationery');c.setAuthor('Ivory Digital · Weddings By Mark')
     for p in layouts:
         c.setPageSize((p.w+2*b,p.h+2*b));c.setCropBox((b,b,p.w+b,p.h+b),name='trim');c.setFillColor(HexColor(p.bg));c.rect(0,0,p.w+2*b,p.h+2*b,fill=1,stroke=0);c.saveState();c.translate(b,b)
@@ -401,7 +401,9 @@ def draw_pdf(layouts,bleed=0):
                         run.setFillColor(HexColor(extra if chunk=='&' else col));run.textOut(chunk)
                 c.drawText(run)
             elif op[0]=='image':
-                _,img,x,y,w,h=op;c.drawImage(ImageReader(img),x,p.h-y-h,w,h,mask='auto')
+                _,img,x,y,w,h=op
+                if id(img) not in readers:readers[id(img)]=ImageReader(img)
+                c.drawImage(readers[id(img)],x,p.h-y-h,w,h,mask='auto')
         c.restoreState();c.showPage()
     c.save();return out.getvalue()
 

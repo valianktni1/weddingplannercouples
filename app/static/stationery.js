@@ -11,6 +11,7 @@
  function guard(){return !dirty||confirm('Leave this unfinished design? Save it first to keep your changes.')}
  function nav(){return `<nav class="stationery-steps" aria-label="Stationery steps">${['Collection','Item','Personalise','Preview & download'].map((name,i)=>`<button type="button" data-stage="${i+1}" ${step===i+1?'aria-current="step"':''} ${i>0&&!collection||i>1&&!data?'disabled':''}>${i+1}. ${name}</button>`).join('')}</nav>`}
  function render(){
+  const offer=document.getElementById('stationery-bespoke-offer');if(offer)offer.hidden=step!==1;
   let html=nav();
   if(step===1){
    html+=`<div class="stationery-collections">${Object.entries(model.collections).map(([key,c])=>`<button type="button" class="collection-card" data-collection="${key}"><img src="/api/stationery/collections/${key}.png" alt="${esc(c.name)} invitation example" loading="lazy"><strong>${esc(c.name)}</strong><small>${esc(c.description)}</small></button>`).join('')}</div>`;

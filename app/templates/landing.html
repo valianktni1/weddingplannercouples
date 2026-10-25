@@ -19,7 +19,7 @@
       <p>Price is being finalised. Checkout is closed.</p>
     {% endif %}
     <div class="actions">
-      {% if settings.signups_enabled %}<a class="button primary" href="/signup">Start your trial</a>{% endif %}
+      {% if settings.signups_enabled %}<a class="button primary" href="/signup">Start your trial</a>{% else %}<a class="button primary" href="/trial-interest">Let me know when trials open</a>{% endif %}
       <a class="button" href="/login">Sign in</a>
     </div>
   </section>

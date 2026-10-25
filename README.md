@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.8.0
+# Ivory Digital Wedding Planner — v1.9.0
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -637,3 +637,13 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The updater preserves installation configuration and port 30063, backs up data, rehearses recovery in isolation, and prints rollback instructions before restarting only the planner.
+
+## v1.9.0: bespoke stationery and trial interest
+
+Deploy both features together using `bash scripts/deploy-v190.sh` after pulling main. The updater retains the installation's Compose/environment settings, snapshots the existing data, tests isolated archive recovery, builds an immutable release and prints a rollback command before restarting only this planner.
+
+Couples open Menu → Our stationery → Made for us. The £199 digital design set is a separate optional paid service for both complimentary and paid planner accounts: nine matching item types, one original theme and one combined revision. No printing or automated AI service is included. The brief does not commit them to work until they accept Mark's quote. Guest names/table assignments can be updated free within the approved template, including through a separate printing list after planning access ends.
+
+Superadmin → Bespoke stationery orders manages quotes, designer packs, proof versions, reviewed emails, problems and manually verified GBP receipts. Use the editable starter/current pack to prepare the actual original artwork and layout; see BESPOKE-DESIGN-GUIDE.md. The app does not turn an inspiration upload into a finished original design automatically. It supports approved editable text over private image artwork. Publishing revised artwork or wording requires fresh approval; existing payment stays recorded. Payment reports and SMTP acceptance never count as verified payment or email delivery. Only manually confirmed payment plus current proof approval unlock clean files. Bank/PayPal settings are reused; bespoke sales do not purchase or extend planner access. Extra redesign/manual work is agreed separately before proceeding; correcting the designer's errors does not consume a paid revision.
+
+For ads or website links use `/trial-interest?source=website` (or `source=facebook`, etc.). The public homepage offers this while sign-ups are closed; old /signup links reach the form too. Requests need explicit consent to trial contact, create no account and send no email. Superadmin → Trial interest shows pending requests, unverified emails, source and recorded consent, with contacted/deletion controls and CSV. Follow up individually and use the existing previewable trial-invitation flow. Opening sign-ups sends nothing automatically. Active requests expire after 180 days; honour removal in exported copies too. Protected backup copies follow configured backup retention. Normal sign-up remains available when enabled.

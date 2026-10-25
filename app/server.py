@@ -24,7 +24,7 @@ from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.8.0'
+VERSION='1.9.0'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -128,6 +128,9 @@ def create_app(test_config=None):
             request.max_content_length=512000
             request.max_form_memory_size=512000
             request.max_form_parts=500
+        if request.path.startswith('/api/admin/bespoke/') and request.path.endswith('/pack'):
+            request.max_content_length=65*1024*1024
+            request.max_form_memory_size=200000
         if request.path.startswith('/api/integrations/control-centre/'):
             from .control_centre import authorise
             authorise()
@@ -149,6 +152,10 @@ def create_app(test_config=None):
             if g.user and g.user['role']=='couple' and request.method=='GET' and request.path in ['/app','/api/state','/hub','/api/hub','/stationery','/api/stationery']:
                 db().execute('INSERT INTO hub_meta(wedding_id,last_active) SELECT wedding_id,? FROM members WHERE user_id=? ON CONFLICT(wedding_id) DO UPDATE SET last_active=excluded.last_active WHERE coalesce(last_active,0)<?',(time.time(),g.user['id'],time.time()-300))
         db().commit()
+        if request.method in ('POST','PUT','PATCH','DELETE') and request.path.startswith(('/api/bespoke','/api/admin/bespoke')):
+            if not g.user:abort(401)
+            expected='admin' if request.path.startswith('/api/admin/') else 'couple'
+            if g.user['role']!=expected or not g.user['verified']:abort(403)
         if request.method in ('POST','PUT','PATCH','DELETE') and request.path!='/api/stripe/webhook':
             value=request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
             if not hmac.compare_digest(str(value),g.session['csrf']): abort(403,description='This form expired. Reload and try again.')
@@ -215,7 +222,7 @@ def create_app(test_config=None):
     def signup():
         settings=config(db())
         if not settings['signups_enabled']:
-            return render_template('message.html',title='Opening soon',message='Ivory Digital is setting up the planner. Please come back soon.'),403
+            return redirect('/trial-interest')
         if request.method=='GET': return render_template('auth.html',mode='signup',title='Create your planner')
         rate('signup',100,3600)
         email=request.form.get('email','').lower().strip();password=request.form.get('password','')
@@ -364,7 +371,7 @@ def create_app(test_config=None):
     @app.get('/api/export')
     @auth()
     def export():
-        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],guest_replies=[dict(r)|{'choices':json.loads(r['choices'])} for r in db().execute('SELECT guest_id,choices,meal,replied FROM guest_replies WHERE wedding_id=?',(w['id'],))],exported=time.time())
+        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],bespoke=[dict(r)|{'brief':json.loads(r['brief'])} for r in db().execute('SELECT id,stage,amount,brief,quote_note,revision_used,revision_note,design_version,approved_version,paid_at,roster,created,updated FROM bespoke_orders WHERE wedding_id=?',(w['id'],))],guest_replies=[dict(r)|{'choices':json.loads(r['choices'])} for r in db().execute('SELECT guest_id,choices,meal,replied FROM guest_replies WHERE wedding_id=?',(w['id'],))],exported=time.time())
     @app.get('/website')
     @auth()
     def website_editor(): wedding();return render_template('website_editor.html')
@@ -661,7 +668,7 @@ def create_app(test_config=None):
             'backup':{'ok':bool(newest and time.time()-newest.stat().st_mtime<48*3600),'latest':newest.name if newest else None,'completed_at':newest.stat().st_mtime if newest else None,'action':'Check the worker logs and backup volume, then run an isolated restore test.'},
             'storage':{'ok':usage.free>=max(1024**3,usage.total//20),'free':usage.free,'total':usage.total,'action':'Free space on the planner data volume or expand it before uploads and backups fail.'}}
         return jsonify(invitation_default_until=access_end(settings),couples=couples,cancelled_invitations=cancelled,manual_payments=paypal_payments,paypal_payments=[p for p in paypal_payments if p['provider']=='paypalme'],settings=public_settings,smtp=smtp_configuration(settings),deliveries=deliveries,history=history,support=grants,
-            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'worker_heartbeat':heartbeat,'health':health})
+            status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'bespoke_sales_pence':db().execute('SELECT coalesce(sum(amount),0) FROM bespoke_receipts').fetchone()[0],'trial_interest_pending':db().execute('SELECT count(*) FROM trial_interest WHERE contacted IS NULL AND created>=?',(time.time()-180*86400,)).fetchone()[0],'bespoke_open_orders':db().execute("SELECT count(*) FROM bespoke_orders WHERE stage NOT IN ('Paid','Cancelled') OR attention=1").fetchone()[0],'worker_heartbeat':heartbeat,'health':health})
     from .admin_backups import register_admin_backups
     register_admin_backups(app,db,auth,audit,rate)
 
@@ -1223,6 +1230,10 @@ def create_app(test_config=None):
     hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
     from .stationery import register_stationery
     register_stationery(app,db,auth,wedding,json_body,audit,rate)
+    from .trial_interest import register_trial_interest
+    register_trial_interest(app,db,auth,rate,audit,valid_email)
+    from .bespoke import register_bespoke
+    register_bespoke(app,db,auth,wedding,json_body,audit,rate,paypal_link,bank_ready,queue)
     from .control_centre import register_control_centre
     register_control_centre(app, VERSION)
     return app
