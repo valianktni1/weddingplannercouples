@@ -171,3 +171,19 @@ body.couple-page:has(.couple-app.dark){background:#19251f}
 
 #ivory-planner.couple-app .menu-booking-tools:empty{display:none}
 #ivory-planner.couple-app .menu-booking-tools button{width:100%;margin-top:12px;word-break:normal;overflow-wrap:normal}
+
+/* Short paths to common tasks, without hiding existing planner tools. */
+#ivory-planner.couple-app .planner-menu-find{display:flex;align-items:end;gap:12px;max-width:740px}
+#ivory-planner.couple-app .planner-menu-find .field{flex:1;min-width:0;margin:0}
+#ivory-planner.couple-app .planner-menu-find input{width:100%;min-width:0}
+#ivory-planner.couple-app #couple-menu-search-status{margin:10px 0 20px;min-height:1.4em}
+#ivory-planner.couple-app .planner-menu-group[hidden],#ivory-planner.couple-app .planner-menu-group a[hidden]{display:none!important}
+#ivory-planner.couple-app .quick-add{margin:0 0 12px;padding:18px 0}
+#ivory-planner.couple-app .quick-add-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#ivory-planner.couple-app .quick-add-actions button{margin:0;min-height:48px;text-align:center;justify-content:center}
+#ivory-planner.couple-app nav.couple-guest-steps{display:block;background:transparent;border:1px solid var(--p-border);border-radius:10px;padding:18px;margin:0 0 24px}
+#ivory-planner.couple-app .couple-guest-steps>div{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+#ivory-planner.couple-app .couple-guest-steps .button{flex:1 1 150px;text-align:center;justify-content:center}
+#ivory-planner.couple-app .couple-guest-steps [aria-current=step]{background:var(--p-soft)}
+#ivory-planner.couple-app .couple-guest-steps small{display:block;font-size:15px;color:var(--p-secondary)}
+@media(max-width:760px){#ivory-planner.couple-app .quick-add-actions{grid-template-columns:repeat(2,minmax(0,1fr))}#ivory-planner.couple-app .planner-menu-find{align-items:stretch;flex-direction:column}}

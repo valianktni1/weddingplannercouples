@@ -11,7 +11,9 @@
 <section id="couple-menu" class="couple-menu" hidden aria-label="All your planner pages">
   <div class="section-heading"><h2>Your planner</h2><button type="button" data-couple-close>Close menu</button></div>
   <p class="menu-intro">Everything for your wedding, together. Start wherever suits you.</p>
-  <nav aria-label="All planner pages" class="planner-menu-groups">
+  <div class="planner-menu-find"><label class="field"><span>Find a planner tool</span><input id="couple-menu-search" type="search" placeholder="Try guests, payments, invitations or timings" autocomplete="off" maxlength="100" aria-controls="couple-menu-pages"></label><button type="button" data-menu-search-clear hidden>Clear search</button></div>
+  <p id="couple-menu-search-status" class="hint" role="status" aria-live="polite"></p>
+  <nav aria-label="All planner pages" class="planner-menu-groups" id="couple-menu-pages">
     <section class="planner-menu-group"><h3>Our plans</h3>
       {% for key,label in [('home','Our wedding'),('tasks','Our checklist'),('money','Our budget'),('suppliers','Suppliers'),('calendar','Calendar')] %}
       <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>{% endfor %}

@@ -1,3 +1,11 @@
+## v1.9.2 — admin password changes and shorter couple workflows
+
+Add System & security → Change your admin password. A fully authenticated, verified administrator with two-step verification can enter the new password twice without the old password. Require CSRF and the existing 12–200 character password rule, rate-limit changes, recheck the session under the write lock, hash the password, revoke other and pending admin sessions and old reset links, rotate the current session/CSRF, and record a password-free audit event. Keep this device signed in and retain the existing authenticator/recovery codes. Guard unfinished password forms and block duplicate submissions.
+
+Add a searchable grouped couple menu with common synonyms, clear/no-result states and all existing routes retained. Put Add a guest / supplier / task / date on Home using existing editors, including an unfinished-form guard. Connect the guest list to invitation designs, the wedding website/RSVPs and table planning, clarifying printable stationery versus RSVP links. Remember main-planner section scroll positions for the browser tab so returning or reloading keeps the couple's place; retain a memory fallback if session storage is blocked. Store only route names and scroll numbers, never plan data.
+
+No schema migration, couple-data rewrite, payment/email automation change or production dependency. Include the configuration-preserving v1.9.2 updater with backup, isolated recovery rehearsal, health checks and a printed rollback command.
+
 ## v1.9.1 — upload and position Photo Story photographs
 
 Upload a private JPEG, PNG or WebP directly in the stationery editor using the existing authenticated upload service. Preserve unsaved wording on success and upload failure. Add an instant crop view with drag, horizontal/vertical sliders, zoom, reset and the original crop presets. Apply the saved framing to the full design preview, sharing image and print PDF for day/evening invitations, save-the-dates, welcome signs and thank-you cards.

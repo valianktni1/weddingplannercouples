@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.9.1
+# Ivory Digital Wedding Planner — v1.9.2
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -653,3 +653,11 @@ For ads or website links use `/trial-interest?source=website` (or `source=facebo
 After pulling main, run `bash scripts/deploy-v191.sh`. This includes v1.9.0 if it has not been deployed yet. The updater preserves installation configuration, backs up data, rehearses recovery in isolation and prints a rollback command.
 
 Open Our invitations & stationery → Photo Story → choose an item → Personalise. Choose an existing photograph or upload a JPEG, PNG or WebP (up to 10 MB and 20 megapixels). Drag in the crop frame or use Horizontal position, Vertical position and Zoom. The frame follows the selected paper size. Use Update preview to see the complete design, then Save & preview and download as usual. Uploaded photographs remain private unless explicitly published or shared. Existing drafts retain their original top/centre/bottom crop; there is no data migration.
+
+## v1.9.2: admin password and easier couple navigation
+
+After pulling main, run `bash scripts/deploy-v192.sh`. This includes the prior releases and uses the same backup/recovery rehearsal, installation-setting preservation and rollback process.
+
+In the admin console, open System & security → Change your admin password. Enter a new password of 12–200 characters twice. The current password is not required because this uses your signed-in, two-step-verified admin session. The current device stays signed in with a rotated session; other/pending admin sessions and old password-reset links are revoked. Your authenticator and recovery codes remain unchanged. No admin password is supplied or changed by deployment itself.
+
+Couples can search the Menu for tools such as guests, RSVPs, payments, invitations and timings, or add a guest, supplier, task or date directly from Home. Existing editors, save/conflict handling and unsaved-work guards remain in use. The guest list links through to invitation designs, website/RSVPs and table planning. Main-planner section scroll positions are remembered within the browser tab, including on return/reload. Only section names and scroll coordinates are stored in session storage; no couple or guest data is stored there. New device sessions start at the top.

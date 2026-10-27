@@ -1,3 +1,13 @@
+v1.9.2 — admin password and couple workflow verification (27 October 2026)
+
+- Full Python suite: 267 passed, 3 subtests passed.
+- New admin-password checks: verified/full admin session and CSRF required; invalid length/mismatch rejected; new hash verified; current session/CSRF rotated; other/pending sessions and old reset links revoked; authenticator/recovery codes retained; couple state unchanged; new password still requires two-step sign-in.
+- deploy-v192.sh release preparation/sequence: 10 passed, 3 subtests passed, including backup/build/recovery failure protection.
+- Real browser checks: Home quick actions, tool search/synonyms/no-results/clear, narrow/dark layouts, guest-step links, unfinished-form protection, return/reload scroll, admin password form and continued console/CSRF access.
+- Existing real-browser grouped navigation, planning-journey and Photo Story upload/crop/download workflows passed. Mobile home-screen installation checks also passed, including blocked browser storage, new-couple setup and Samsung/Chrome handoff.
+- JS syntax, existing planning-journey and merge tests, shell syntax and whitespace checks passed. Mobile Home and admin-password screenshots inspected.
+- Tests used disposable local sample accounts and isolated data; browser QA blocks outbound SMTP. The live planner was not deployed or modified by these checks.
+
 v1.9.1 — Photo Story editor verification (25 October 2026)
 
 - Full Python suite: 261 passed, 3 subtests passed.

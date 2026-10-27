@@ -24,7 +24,7 @@ from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.9.1'
+VERSION='1.9.2'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -612,6 +612,26 @@ def create_app(test_config=None):
         if not g.user or not g.user['verified']: abort(401)
         db().execute('DELETE FROM sessions WHERE (user_id=? OR pending=?) AND id!=?',(g.user['id'],g.user['id'],g.session['id']))
         audit('Other sign-in sessions revoked');return jsonify(ok=True)
+    @app.post('/api/admin/password')
+    @auth(admin=True)
+    def admin_change_password():
+        body=json_body()
+        password=body.get('password')
+        if not password_ok(password):raise ValueError('Choose a new password of 12 to 200 characters.')
+        if password!=body.get('confirm_password'):raise ValueError('The two new passwords do not match.')
+        uid=g.user['id'];rate('admin-password-'+uid,5,3600,per_ip=False)
+        hashed=generate_password_hash(password)
+        db().execute('BEGIN IMMEDIATE')
+        # Recheck after taking the write lock: a concurrent change may have revoked this session.
+        current=db().execute('SELECT 1 FROM sessions WHERE id=? AND user_id=? AND expires>?',(g.session['id'],uid,time.time())).fetchone()
+        if not current:abort(401,description='Your session ended. Sign in again before changing your password.')
+        db().execute('UPDATE users SET password=? WHERE id=? AND role="admin"',(hashed,uid))
+        db().execute('UPDATE tokens SET used=1 WHERE user_id=? AND kind="reset"',(uid,))
+        db().execute('DELETE FROM sessions WHERE user_id=? OR pending=?',(uid,uid))
+        g.session=new_session(user=uid)
+        audit('Administrator password changed; other sign-in sessions revoked')
+        return jsonify(ok=True,csrf=g.session['csrf'])
+
     @app.get('/ivoryadmin')
     @auth(admin=True)
     def admin_page(): return render_template('admin.html')
