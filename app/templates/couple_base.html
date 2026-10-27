@@ -10,7 +10,7 @@
 {% block page_menu %}
 <section id="couple-menu" class="couple-menu" hidden aria-label="All your planner pages">
   <div class="section-heading"><h2>Your planner</h2><button type="button" data-couple-close>Close menu</button></div>
-  <p class="menu-intro">Everything for your wedding, together. Start wherever suits you.</p>
+  <p class="menu-intro">Home shows your next step. Use the sections below or search for what you want to do.</p>
   <div class="planner-menu-find"><label class="field"><span>Find a planner tool</span><input id="couple-menu-search" type="search" placeholder="Try guests, payments, invitations or timings" autocomplete="off" maxlength="100" aria-controls="couple-menu-pages"></label><button type="button" data-menu-search-clear hidden>Clear search</button></div>
   <p id="couple-menu-search-status" class="hint" role="status" aria-live="polite"></p>
   <nav aria-label="All planner pages" class="planner-menu-groups" id="couple-menu-pages">
@@ -25,9 +25,9 @@
     </section>
     {% if not preview_state %}<section class="planner-menu-group"><h3>Our website & invitations</h3>
       <a href="/website" data-couple-route="website">Edit & preview our website<span aria-hidden="true">›</span></a>
-      <a href="/website#guest-invitations" data-couple-route="invitations">Guest invitation links<span aria-hidden="true">›</span></a>
+      <a href="/website#guest-invitations" data-couple-route="invitations">Personal RSVP links<span aria-hidden="true">›</span></a>
     </section>{% endif %}
-    {% if not preview_state %}<section class="planner-menu-group"><h3>Our stationery</h3><a href="/stationery" data-couple-route="stationery">Invitations & matching stationery<span aria-hidden="true">›</span></a><a href="/bespoke" data-couple-route="bespoke">Made for us · bespoke set<span aria-hidden="true">›</span></a></section>{% endif %}
+    {% if not preview_state %}<section class="planner-menu-group"><h3>Our stationery</h3><a href="/stationery" data-couple-route="stationery">Printable invitations & stationery<span aria-hidden="true">›</span></a><a href="/bespoke" data-couple-route="bespoke">Made for us · bespoke set<span aria-hidden="true">›</span></a></section>{% endif %}
     <section class="planner-menu-group"><h3>Our wedding day</h3>
       {% for key,label in [('day','Build our timings'),('test','Check our timings'),('final','Review & export')] %}
       <a href="/app#{{ key }}" data-couple-page="{{ key }}">{{ label }}<span aria-hidden="true">›</span></a>{% endfor %}

@@ -24,7 +24,7 @@ from .invitation_mail import invitation_email
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.9.2'
+VERSION='1.9.3'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -238,7 +238,7 @@ def create_app(test_config=None):
         value=token('verify',user=uid)
         queue(email,'Verify your wedding planner email',app.config['APP_URL']+'/verify/'+value)
         audit('Couple account registered',wid)
-        return render_template('message.html',title='Check your email',message='Open the verification link to finish setting up your account. If it does not arrive, ask Ivory Digital to check email delivery.')
+        return render_template('message.html',title='Check your email',message='Open the verification email and confirm your address, then sign in with the password you just chose. Your planner will guide you through setup. If you cannot find the email, check your spam or junk folder; you can request another from the sign-in page.')
     @app.route('/verify/<value>',methods=['GET','POST'])
     def verify(value):
         row=token_row(value,'verify')

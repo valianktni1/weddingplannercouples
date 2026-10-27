@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.9.2
+# Ivory Digital Wedding Planner — v1.9.3
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -661,3 +661,9 @@ After pulling main, run `bash scripts/deploy-v192.sh`. This includes the prior r
 In the admin console, open System & security → Change your admin password. Enter a new password of 12–200 characters twice. The current password is not required because this uses your signed-in, two-step-verified admin session. The current device stays signed in with a rotated session; other/pending admin sessions and old password-reset links are revoked. Your authenticator and recovery codes remain unchanged. No admin password is supplied or changed by deployment itself.
 
 Couples can search the Menu for tools such as guests, RSVPs, payments, invitations and timings, or add a guest, supplier, task or date directly from Home. Existing editors, save/conflict handling and unsaved-work guards remain in use. The guest list links through to invitation designs, website/RSVPs and table planning. Main-planner section scroll positions are remembered within the browser tab, including on return/reload. Only section names and scroll coordinates are stored in session storage; no couple or guest data is stored there. New device sessions start at the top.
+
+## v1.9.3: clearer couple instructions
+
+After pulling main, run `bash scripts/deploy-v193.sh`. This includes earlier releases and retains the backup/recovery rehearsal, installation settings and rollback process.
+
+Home now includes a collapsed “How your planner fits together” guide. Setup describes its actual partner-invitation behaviour, the initial action offers an empty wedding its first booking, Budget explains supplier/instalment/payment records, and the website and stationery screens link to each other with clear print-versus-RSVP explanations. Account access opens the active-access summary for couples who already have full access. No plan migration or pricing change.

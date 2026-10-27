@@ -1,3 +1,13 @@
+v1.9.3 — couple clarity verification (27 October 2026)
+
+- Full Python regression: 267 passed, 3 subtests passed.
+- deploy-v193.sh release preparation/sequence: 10 passed, 3 subtests passed, including backup/build/recovery failure protection.
+- New real-browser flow passed: three-step setup, empty wedding first-booking action, unfinished-input protection, Home guide links, 320/390/736/1280px light/dark layouts, budget/supplier path, print-versus-RSVP cross-links, unchanged saved wedding state and existing active-access summary.
+- Existing real-browser grouped navigation, planning journey and streamlined workflows passed, including overdue payments, menu search, return/reload scroll and admin password changes with continued console access.
+- Photo Story upload/crop regression passed: wording retained, sliders/drag/presets/reset, failed-upload recovery, narrow/dark layouts, real PDF/PNG downloads, saved crop reload and unchanged plan state.
+- Planning-journey JavaScript checks, JS/shell syntax and whitespace checks passed. The mobile Home guide screenshot was inspected.
+- Checks used disposable sample accounts/data with outbound SMTP blocked. No production deployment, live messages or payments were performed. No schema migration is required.
+
 v1.9.2 — admin password and couple workflow verification (27 October 2026)
 
 - Full Python suite: 267 passed, 3 subtests passed.

@@ -1,3 +1,14 @@
+## v1.9.3 — clearer first steps and couple instructions
+
+- Explain the three setup steps, booked-supplier placeholders and when a partner invitation is sent.
+- Give an empty wedding a direct first-booking action instead of leading straight into detailed timings; retain overdue payment/task priority.
+- Add an optional Home guide with direct links and plain explanations of bookings, guests, websites/RSVPs, printable stationery, timings and partner access.
+- Clarify the supplier → instalment → payment-record budget workflow and saved-change/recovery instructions.
+- Distinguish printable stationery from personal online RSVP links on both tools and in the menu. Explain account verification before sign-in.
+- Label the access control Account access and show existing paid/complimentary access without an unnecessary upgrade error.
+
+No schema change, couple-data rewrite, pricing or payment/email automation change. Include the configuration-preserving v1.9.3 updater with backup, isolated recovery rehearsal, health checks and a printed rollback command.
+
 ## v1.9.2 — admin password changes and shorter couple workflows
 
 Add System & security → Change your admin password. A fully authenticated, verified administrator with two-step verification can enter the new password twice without the old password. Require CSRF and the existing 12–200 character password rule, rate-limit changes, recheck the session under the write lock, hash the password, revoke other and pending admin sessions and old reset links, rotate the current session/CSRF, and record a password-free audit event. Keep this device signed in and retain the existing authenticator/recovery codes. Guard unfinished password forms and block duplicate submissions.

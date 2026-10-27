@@ -187,3 +187,12 @@ body.couple-page:has(.couple-app.dark){background:#19251f}
 #ivory-planner.couple-app .couple-guest-steps [aria-current=step]{background:var(--p-soft)}
 #ivory-planner.couple-app .couple-guest-steps small{display:block;font-size:15px;color:var(--p-secondary)}
 @media(max-width:760px){#ivory-planner.couple-app .quick-add-actions{grid-template-columns:repeat(2,minmax(0,1fr))}#ivory-planner.couple-app .planner-menu-find{align-items:stretch;flex-direction:column}}
+
+/* Optional orientation stays compact until the couple asks for it. */
+#ivory-planner.couple-app .planner-guide{border:1px solid var(--p-border);border-radius:10px;padding:16px 18px;margin:0 0 24px;min-width:0}
+#ivory-planner.couple-app .planner-guide summary{cursor:pointer;font-size:18px;font-weight:600;min-height:32px;line-height:1.6}
+#ivory-planner.couple-app .planner-guide>p{margin:14px 0;font-size:16px}
+#ivory-planner.couple-app .planner-guide-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+#ivory-planner.couple-app .planner-guide .planning-link{width:100%;min-width:0;text-align:left;margin:0;white-space:normal}
+#ivory-planner.couple-app .planner-guide .planning-link small{display:block;line-height:1.5;font-size:16px}
+@media(max-width:760px){#ivory-planner.couple-app .planner-guide-tools{grid-template-columns:1fr}}
