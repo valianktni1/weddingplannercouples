@@ -1,3 +1,14 @@
+v1.9.4 — eight included stationery collections (27 October 2026)
+
+- Full Python regression: 271 passed, 3 subtests passed.
+- Existing renderer checks now exercise all eight collections across all nine stationery items and offered paper sizes, with actual PDF/PNG output and fitted text geometry.
+- New paid/complimentary account checks cover all three palettes for Art Deco and Coastal Calm, explicit draft save and PDF/PNG export, preserved earlier drafts/wedding state and no additional purchase record.
+- Real browser stationery journey passed with eight collection cards, both new styles saved/reopened/exported as PDF and PNG, readable Sea Glass palette choice, all nine item choices, 320/390/736/1280px light/dark layouts, folded place-card batches, download controls, guarded unfinished wording and partner-conflict recovery.
+- Existing Photo Story upload/crop browser regression passed, including real downloads, saved framing and unchanged wedding plans.
+- deploy-v194.sh backup/build/recovery/rollback preparation and sequence checks: 10 passed, 3 subtests passed. JS/shell syntax and whitespace checks passed.
+- All nine sample items in each new collection were rendered and their contact sheets inspected. Artwork uses local vector strokes and the current embedded fonts; no new runtime service or dependency.
+- All checks used isolated sample data/accounts and blocked browser-QA SMTP. No live deployment, payment or message was performed. No schema migration is required.
+
 v1.9.3 — couple clarity verification (27 October 2026)
 
 - Full Python regression: 267 passed, 3 subtests passed.

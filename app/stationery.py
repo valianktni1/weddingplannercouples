@@ -33,7 +33,9 @@ COLLECTIONS={
  'classic':{'name':'Timeless Classic','description':'Fine borders, balanced lettering and your initials.','palettes':{'navy':['#fffdf5','#182e48','#182e48'],'forest':['#fffdf5','#203e32','#203e32'],'burgundy':['#fffdf5','#612f36','#612f36']}},
  'meadow':{'name':'Romantic Meadow','description':'Soft wildflowers and airy lettering.','palettes':{'rose':['#fffdf6','#353c2d','#9d575e'],'blue':['#fffdf6','#263d55','#536a83'],'sage':['#fffdf6','#263d32','#5e754f']}},
  'colour':{'name':'Contemporary Colour','description':'Playful printed borders and confident colour.','palettes':{'berry':['#fff8ec','#6a1e2a','#c87886'],'blue':['#fffbed','#244a6b','#88a8bc'],'green':['#fffbed','#28533c','#a6b58c']}},
- 'photo':{'name':'Photo Story','description':'Your photograph with considered, simple lettering.','palettes':{'neutral':['#fffdf6','#292925','#766957'],'navy':['#fffdf6','#243c53','#708393'],'forest':['#fffdf6','#263f32','#78836c']}}
+ 'photo':{'name':'Photo Story','description':'Your photograph with considered, simple lettering.','palettes':{'neutral':['#fffdf6','#292925','#766957'],'navy':['#fffdf6','#243c53','#708393'],'forest':['#fffdf6','#263f32','#78836c']}},
+ 'deco':{'name':'Art Deco','description':'Stepped geometric borders and striking, balanced lettering.','palettes':{'midnight':['#fcf8ee','#182d3b','#91703d'],'emerald':['#fcf9ef','#193f38','#8b713e'],'champagne':['#fffaf1','#34302c','#8c6a40']}},
+ 'coastal':{'name':'Coastal Calm','description':'Flowing wave details and soft lettering in seaside colours.','palettes':{'blue':['#fbfcf8','#28485e','#597f92'],'sea_glass':['#fcfcf5','#264f4c','#64867b'],'sand':['#fffaf1','#514537','#977956']}}
 }
 KINDS={
  'day':{'name':'Day invitation','sizes':['5x7','A5']},
@@ -180,10 +182,11 @@ class Layout:
         parts=re.split(r'\s+(?:&|and)\s+',text,maxsplit=1,flags=re.I)
         if len(parts)==2:
             lines=parts if style=='editorial' else [parts[0]+' &',parts[1]] if style=='colour' else [parts[0],'&',parts[1]] if style=='meadow' else [text]
-            if style=='editorial':lines=[parts[0],'& '+parts[1]]
+            if style in ('editorial','coastal'):lines=[parts[0],'& '+parts[1]]
+            if style=='deco':lines=[parts[0],'&',parts[1]]
         else:lines=[text]
         font='StationerySerif';margin=self.w*(.105 if style=='editorial' else .12);width=self.w-2*margin
-        target=self.w*({'editorial':.215,'colour':.185,'meadow':.17}.get(style,.13))
+        target=self.w*({'editorial':.215,'colour':.185,'meadow':.17,'deco':.18,'coastal':.18}.get(style,.13))
         height=self.area*high
         size=min(target,height/(len(lines)*1.03))
         minimum=self.w*.065
@@ -243,6 +246,26 @@ class Layout:
                 for i in range(n+1):
                     t=i/n;pts.append((inset+math.sin(t*math.pi*12)*w*.008,y+h-inset-t*(h-2*inset)))
                 self.ops.append(('path',pts,col,w*.026))
+        if c=='deco':
+            # Chamfered frames and stepped corners remain vector strokes in print.
+            # They stay outside the shared text area, including small/folded cards.
+            for inset,line in [(w*.038,.7),(w*.056,.35)]:
+                cut=min(w*.09,h*.12)
+                pts=[(inset+cut,y+inset),(w-inset-cut,y+inset),(w-inset,y+inset+cut),
+                     (w-inset,y+h-inset-cut),(w-inset-cut,y+h-inset),(inset+cut,y+h-inset),
+                     (inset,y+h-inset-cut),(inset,y+inset+cut)]
+                self.ops.append(('path',pts,self.accent,line))
+            for side in (0,1):
+                x=w*(.083 if side==0 else .917);direction=1 if side==0 else -1
+                for top in (True,False):
+                    yy=y+(h*.095 if top else h*.905);down=1 if top else -1
+                    self.line(x,yy,x+direction*w*.065,yy,self.accent,.55)
+                    self.line(x,yy,x,yy+down*min(w*.065,h*.08),self.accent,.55)
+        if c=='coastal':
+            # Open wave strokes avoid a filled panel and leave the wording clear.
+            for row in range(3):
+                points=[(w*(.06+.88*i/64),y+h*(.95+row*.012)+math.sin(i/64*math.pi*2+row*.55)*h*.006) for i in range(65)]
+                for a,b in zip(points,points[1:]):self.line(*a,*b,self.accent,.55 if row==0 else .3)
         if c=='botanical':
             ratio=.18 if self.kind=='seating' else .52
             depth=.12 if self.kind=='seating' else .20 if self.kind=='menu' else .32
@@ -306,6 +329,20 @@ def build_layout(config,kind,state,photo=None,guest=None,table=None):
             p.tracked(readable_date(config['date']),.565,.06,w*.032,1.35,font='StationerySerif')
             p.tracked(config['venue'],.63,.055,w*.029,1.6,font='StationerySerif')
             txt(config['arrival'],.695,.055,.97);txt(config['closing'],.755,.055,.94,'StationeryItalic')
+        elif c=='deco':
+            p.tracked(config['intro'] if kind!='save_date' else 'Save the date',.16,.06,w*.026,1.8)
+            p.names(config['names'],.255,.28,'deco')
+            p.tracked(config['message'],.575,.075,w*.025,1.2)
+            p.rule(.68);p.tracked(readable_date(config['date']),.715,.055,w*.033,1.5,font='StationerySerif')
+            p.tracked(config['venue'],.785,.05,w*.028,1.3,font='StationerySerif')
+            txt(config['arrival'],.84,.05,.95);txt(config['closing'],.90,.045,.9,'StationeryItalic')
+        elif c=='coastal':
+            txt(config['intro'] if kind!='save_date' else 'Save the date',.15,.065,1.1,'StationeryItalic')
+            p.names(config['names'],.255,.255,'coastal')
+            txt(config['message'],.56,.075,1.08,'StationeryItalic')
+            p.rule(.675);p.tracked(readable_date(config['date']),.71,.055,w*.032,1.1,font='StationerySerif')
+            p.tracked(config['venue'],.78,.05,w*.028,1.1,font='StationerySerif')
+            txt(config['arrival'],.835,.05,.95);txt(config['closing'],.895,.04,.9,'StationeryItalic')
         elif c=='colour':
             txt(config['intro'] if kind!='save_date' else 'Save the date',.16,.06,1.05)
             p.names(config['names'],.255,.29,'colour')
@@ -326,7 +363,7 @@ def build_layout(config,kind,state,photo=None,guest=None,table=None):
         top=.08 if has_photo else .24 if c in ('classic','botanical') else .12
         p.tracked('Welcome to the wedding of',top,.09,w*.026, w*.005)
         ntop=.17 if has_photo else .35 if c in ('classic','botanical') else .26
-        style=c if c in ('editorial','meadow','colour') else 'inline'
+        style=c if c in ('editorial','meadow','colour','deco','coastal') else 'inline'
         p.names(config['names'],ntop,.15 if has_photo or style=='inline' else .34,style,'left' if c=='editorial' else 'center')
         dt=.35 if has_photo else .70 if style=='inline' else .72
         p.rule(dt-.04);p.tracked(date.fromisoformat(config['date']).strftime('%d %B %Y').lstrip('0') if config['date'] else 'Wedding date to confirm',dt,.08,w*.037,w*.006,font='StationerySerif')

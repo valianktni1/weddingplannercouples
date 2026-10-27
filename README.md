@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.9.3
+# Ivory Digital Wedding Planner — v1.9.4
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -667,3 +667,9 @@ Couples can search the Menu for tools such as guests, RSVPs, payments, invitatio
 After pulling main, run `bash scripts/deploy-v193.sh`. This includes earlier releases and retains the backup/recovery rehearsal, installation settings and rollback process.
 
 Home now includes a collapsed “How your planner fits together” guide. Setup describes its actual partner-invitation behaviour, the initial action offers an empty wedding its first booking, Budget explains supplier/instalment/payment records, and the website and stationery screens link to each other with clear print-versus-RSVP explanations. Account access opens the active-access summary for couples who already have full access. No plan migration or pricing change.
+
+## v1.9.4: eight included stationery collections
+
+Run `bash scripts/deploy-v194.sh` after pulling main. The existing backup, recovery rehearsal, configuration preservation and rollback process is retained.
+
+Art Deco and Coastal Calm join the six existing standard collections. Each has three colour palettes and supports all nine stationery items and offered paper sizes, including folded place cards and table/guest batches. They use local vector artwork and embedded fonts with the existing preview, save and PDF/PNG download flow. Both are included at no extra charge for trial, paid and complimentary planner access; existing expired-access rules still apply. The optional paid bespoke service is separate. Existing saved designs and default collection are unchanged; no database migration is needed.

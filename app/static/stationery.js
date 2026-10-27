@@ -3,7 +3,7 @@
  let model,step=1,collection=null,kind='day',data=null,dirty=false,busy=false,previewed=false,serial=0,cropImage=null,cropSerial=0;
  function lockForm(on){host.querySelectorAll('#stationery-form input,#stationery-form textarea,#stationery-form select,#stationery-form button').forEach(el=>el.disabled=on||model.readonly)}
  const hints={day:'Your ceremony and reception invitation.',evening:'Separate wording and arrival details for evening guests.',save_date:'Share your date before the formal invitation.',welcome:'A welcome for the venue entrance.',menu:'Use your own confirmed menu wording.',place:'One guest, or a PDF containing a card for each selected guest.',table:'One table, or a PDF of all assigned table names.',seating:'A guest-facing chart using your current table assignments.',thanks:'A personal thank-you after your day.'};
- const label=(s)=>s.charAt(0).toUpperCase()+s.slice(1);
+ const label=(s)=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
  const field=(key,title,type='text')=>`<label class="field"><span>${title}</span><input name="${key}" type="${type}" value="${esc(data[key])}" maxlength="${({names:220,venue:180,intro:160,arrival:160,recipient:160,table_name:100})[key]||240}"></label>`;
  const textarea=(key,title)=>`<label class="field"><span>${title}</span><textarea name="${key}" rows="${key==='menu'?10:3}" maxlength="${key==='menu'?1800:500}">${esc(data[key])}</textarea></label>`;
  const options=(name,title,values,value)=>`<label class="field"><span>${title}</span><select name="${name}">${values.map(([k,l])=>`<option value="${esc(k)}" ${value===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -39,7 +39,7 @@
   }
   host.innerHTML=html;loadCrop();if(model.readonly){host.querySelectorAll('#stationery-form input,#stationery-form textarea,#stationery-form select,#stationery-form button').forEach(e=>e.disabled=true);feedback('View only. You can download saved designs; editing access has ended.')}
  }
- async function load(){model=await ivory.api('/api/stationery');feedback(model.readonly?'View only. You can download saved designs.':'Choose a collection, or continue a saved design.');render()}
+ async function load(){model=await ivory.api('/api/stationery');feedback(model.readonly?'View only. You can download saved designs.':'Choose from eight included collections, or continue a saved design.');render()}
  function readForm(){const form=document.getElementById('stationery-form');if(form)for(const [k,v] of new FormData(form))if(typeof v==='string')data[k]=v;}
  function cropValues(){
   for(const key of ['photo_x','photo_y','photo_zoom']){const input=host.querySelector(`[name="${key}"]`),out=host.querySelector(`[data-crop-value="${key}"]`);if(input)input.value=data[key];if(out)out.textContent=key==='photo_zoom'?Number(data[key]).toFixed(2)+'×':Math.round(Number(data[key]))+'%';}

@@ -1,3 +1,12 @@
+## v1.9.4 — eight included stationery collections
+
+- Add Art Deco: chamfered geometric frames, stepped corner details and a distinct stacked name composition, with midnight, emerald and champagne palettes.
+- Add Coastal Calm: flowing wave details and a centred two-line name composition, with blue, sea-glass and sand palettes.
+- Support all nine stationery items and existing paper sizes through the shared vector PDF/PNG renderer, including folded guest-card and table batches.
+- Clarify that all eight standard collections are included at no extra charge; keep the optional bespoke set separate.
+
+No schema migration, wedding-data rewrite, price change or new runtime dependency. Existing collections, saved drafts and photo framing retain their previous behaviour. Includes the configuration-preserving v1.9.4 updater.
+
 ## v1.9.3 — clearer first steps and couple instructions
 
 - Explain the three setup steps, booked-supplier placeholders and when a partner invitation is sent.

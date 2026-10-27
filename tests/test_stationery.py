@@ -225,3 +225,25 @@ def test_photo_position_survives_save_preview_and_both_exports(app,kind):
     preview=c.post('/api/stationery/'+kind+'/preview',json={'data':current},headers=headers(c));assert preview.status_code==200 and not preview.json['issues']
     for fmt in ('pdf','png'):assert export(c,kind,d,format=fmt).status_code==200
     assert c.get('/api/state').json==original
+
+
+@pytest.mark.parametrize('collection',['deco','coastal'])
+@pytest.mark.parametrize('access_kind',['Paid','Complimentary'])
+def test_new_included_collections_export_without_purchase_or_rewriting_existing_drafts(app,collection,access_kind):
+    c=login(app);db=database(app)
+    db.execute('UPDATE weddings SET access_kind=?,access_until="2030-01-01" WHERE id="wu1"',(access_kind,));db.commit();db.close()
+    save_design(c,'thanks',{'collection':'classic','palette':'navy','message':'Keep our earlier design'})
+    before=context(c);plan=c.get('/api/state').json
+    for palette in COLLECTIONS[collection]['palettes']:
+        data=before['drafts']['day']['data'].copy()
+        data.update(collection=collection,palette=palette,names='Emma & Jamie',date='2027-06-19',venue='The Garden House',arrival='Arrival at 12.30pm')
+        preview=c.post('/api/stationery/day/preview',json={'data':data},headers=headers(c))
+        assert preview.status_code==200 and not preview.json['issues']
+    assert context(c)==before,'Trying a collection must not change saved drafts'
+    draft,_=save_design(c,changes={'collection':collection,'palette':palette})
+    pdf=export(c,'day',draft);assert pdf.status_code==200
+    assert all(word in PdfReader(io.BytesIO(pdf.data)).pages[0].extract_text().casefold() for word in ['emma','jamie','garden house'])
+    png=export(c,'day',draft,format='png');assert png.status_code==200 and png.data.startswith(b'\x89PNG')
+    assert context(c)['drafts']['thanks']==before['drafts']['thanks']
+    assert c.get('/api/state').json==plan
+    db=database(app);assert db.execute('SELECT count(*) FROM purchases').fetchone()[0]==0;db.close()

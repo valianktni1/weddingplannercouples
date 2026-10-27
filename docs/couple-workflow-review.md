@@ -26,3 +26,9 @@ Verification covers real browser widths of 320, 390, 736 and 1280 pixels in ligh
 - Signup explains verification followed by sign-in. Saved-change help directs a failed save through recovery before reloading. Account access shows the existing active-access summary when payment is unnecessary.
 
 All existing destinations, editors, sharing controls, email/payment automation and prices remain intact. No database migration or wedding-state rewrite is required. Browser verification uses isolated accounts and blocks outbound SMTP.
+
+## Included stationery choice — v1.9.4
+
+Art Deco and Coastal Calm extend the six existing collections to eight. Each adds three palettes and supports all nine item types through the same saved-draft, preview, PDF/PNG and batch-download workflow. The stationery introduction identifies the standard designs as included at no extra charge, alongside the separate bespoke offer. New palette labels use readable spaces, for example Sea Glass.
+
+Trying a collection only previews it. Existing drafts change only through the existing explicit Save action; account access rules and the separate optional bespoke payment flow are unchanged. New artwork uses local vector strokes rather than additional image assets or online services. All older collections and the Photo Story crop logic retain their previous compositions.
