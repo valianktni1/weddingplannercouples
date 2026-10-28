@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.9.4
+# Ivory Digital Wedding Planner — v1.9.5
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -673,3 +673,19 @@ Home now includes a collapsed “How your planner fits together” guide. Setup 
 Run `bash scripts/deploy-v194.sh` after pulling main. The existing backup, recovery rehearsal, configuration preservation and rollback process is retained.
 
 Art Deco and Coastal Calm join the six existing standard collections. Each has three colour palettes and supports all nine stationery items and offered paper sizes, including folded place cards and table/guest batches. They use local vector artwork and embedded fonts with the existing preview, save and PDF/PNG download flow. Both are included at no extra charge for trial, paid and complimentary planner access; existing expired-access rules still apply. The optional paid bespoke service is separate. Existing saved designs and default collection are unchanged; no database migration is needed.
+
+
+## v1.9.5: personal planner invitations
+
+Booked-couple and trial setup invitations now use a simple white email, a small Ivory Digital heading, a personal message from Mark and one setup button. Trial wording uses the configured trial length and does not claim the recipients booked Weddings By Mark. Complimentary wording explains included access and retains the actual access end date. Both HTML and plain-text versions retain the seven-day setup-link expiry and reply-for-help details. Invitations identify the sender as Mark at Ivory Digital while retaining the configured sending mailbox, Reply-To and SMTP connection.
+
+Manual previews, fresh invitations and automatic booking invitations share the same template. Previous personal wording is retained when resending an existing invitation; review and edit it in the preview if you want to shorten an older message. Emails already queued retain their original content. Updating the app does not send or resend any invitations, change existing accounts or alter DNS. This is a presentation experiment, not a guarantee of inbox placement.
+
+In the TrueNAS shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v195.sh
+```
+
+The updater preserves installation settings and port 30063, backs up data, rehearses recovery in isolation, checks web/worker version 1.9.5 and prints a rollback command. After deployment, refresh the admin page, preview one complimentary and one trial invitation, then send only to controlled test addresses in Outlook and iCloud. Record inbox/junk placement and original headers before moving the messages. This release does not change self-service sign-up verification, guest RSVP invitations or other planner emails.

@@ -20,11 +20,11 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from .core import connect, initialise, config, digest, cipher, valid_totp, empty_state, validate_state, access_end, date_valid
 
 from .mail_service import smtp_configuration, smtp_ready, send_email, delivery_error
-from .invitation_mail import invitation_email
+from .invitation_mail import invitation_email, SENDER_NAME
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.9.4'
+VERSION='1.9.5'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -719,7 +719,8 @@ def create_app(test_config=None):
         settings=invitation_ready()
         message=invitation_email(state,kind,until,settings['trial_days'],app.config['APP_URL']+'/welcome/personal-link-generated-when-sent',custom)
         fingerprint=digest(json.dumps({'to':email,'body':message['body'],'subject':message['subject']},sort_keys=True))
-        return dict(message,to=email,sender=settings['sender'],reply_to=settings['reply_to'] or settings['sender'],preview_hash=fingerprint,preview_only=True)
+        from email.utils import formataddr
+        return dict(message,to=email,sender=formataddr((SENDER_NAME,settings['sender'])),reply_to=settings['reply_to'] or settings['sender'],preview_hash=fingerprint,preview_only=True)
     def welcome_email(uid,wid,email,custom=None,preview_hash=None):
         settings=invitation_ready();w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone();state=json.loads(w['state'])
         preview=invitation_preview(state,w['access_kind'],w['access_until'],email,custom)

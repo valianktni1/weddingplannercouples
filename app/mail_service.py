@@ -4,6 +4,7 @@ import smtplib
 import socket
 import ssl
 from email.message import EmailMessage
+from email.utils import formataddr
 from cryptography.fernet import InvalidToken
 from .core import cipher
 
@@ -33,11 +34,11 @@ def smtp_ready(settings):
         and s['security'] in ('ssl','starttls') and (not s['user'] or s['password_saved']))
 
 
-def send_email(settings, secret, to, subject, body, message_id, html_body=None):
+def send_email(settings, secret, to, subject, body, message_id, html_body=None, sender_name=None):
     if not smtp_ready(settings):
         raise ValueError('Complete the SMTP host, port, security, sender and any required login details first.')
     s=smtp_configuration(settings,secret)
-    message=EmailMessage();message['From']=settings['sender'];message['To']=to;message['Subject']=subject
+    message=EmailMessage();message['From']=formataddr((sender_name,settings['sender'])) if sender_name else settings['sender'];message['To']=to;message['Subject']=subject
     message['Message-ID']='<'+message_id+'@planner.ivorydigital.uk>'
     if settings.get('reply_to'): message['Reply-To']=settings['reply_to']
     message.set_content(body)

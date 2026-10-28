@@ -12,6 +12,7 @@ from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from .core import connect, initialise, config, digest
 from .mail_service import smtp_ready, send_email, delivery_error
+from .invitation_mail import SENDER_NAME
 
 DATA=Path(os.getenv('DATA_DIR','/data'));BACKUPS=Path(os.getenv('BACKUP_DIR','/backups'))
 
@@ -134,7 +135,9 @@ def deliver(db,settings,now=None,secret=None):
         if body is None:
             db.execute('UPDATE mail SET status="cancelled",last_error=NULL WHERE id=?',(row['id'],));db.commit();continue
         try:
-            send_email(settings,secret,row['to_address'],row['subject'],body,row['id'],**({'html_body':row['html_body']} if row['html_body'] else {}))
+            options={'html_body':row['html_body']} if row['html_body'] else {}
+            if (row['dedupe'] or '').startswith('welcome:'): options['sender_name']=SENDER_NAME
+            send_email(settings,secret,row['to_address'],row['subject'],body,row['id'],**options)
             db.execute('UPDATE mail SET status="sent",attempts=attempts+1,accepted_at=?,last_error=NULL WHERE id=?',(time.time(),row['id']))
         except Exception as exc:
             attempts=row['attempts']+1

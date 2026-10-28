@@ -23,6 +23,7 @@ def counts(app):
 def test_preview_is_read_only_and_send_matches_both_bodies(app):
     admin=prepared(app);before=counts(app);p=preview(admin,DETAILS);assert p.status_code==200,p.json;p=p.json
     assert counts(app)==before and p['preview_only']
+    assert p['sender']=='Mark at Ivory Digital <planner@example.com>'
     assert 'Built by Weddings By Mark' in p['html'] and '30 days after your wedding' in p['body']
     fields={**p['email'],'subject':'A little gift for Sophie & Dan','message':'Hi Sophie & Dan,\n\nLovely chatting today! <script>alert(1)</script>','signoff':'See you soon,\nMark'}
     p=preview(admin,{**DETAILS,'invitation_email':fields}).json
@@ -62,7 +63,7 @@ def test_manual_customisation_does_not_change_automatic_contract_or_defaults(app
     payload=booking_body(email='automatic@example.com');c=app.test_client();r=c.post('/api/integrations/wbm/invitations',json=payload,headers=h);assert r.status_code==201,r.json
     for _ in range(2): assert c.post('/api/integrations/wbm/invitations',json=payload,headers=h).json['wedding_id']==r.json['wedding_id']
     db=database(app);mapping=db.execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(payload['booking_id'],)).fetchone();row=db.execute('SELECT * FROM mail WHERE id=?',(mapping['mail_id'],)).fetchone();db.close()
-    assert row['html_body'] and 'ONLY THIS COUPLE' not in row['body'] and row['subject']=='Your wedding planner is ready, Sophie & Dan'
+    assert row['html_body'] and 'ONLY THIS COUPLE' not in row['body'] and row['subject']=='Your wedding planner access, Sophie & Dan'
     assert c.get('/api/integrations/wbm/invitations/'+payload['booking_id'],headers=h).json['status']=='queued'
     assert c.post('/api/integrations/wbm/invitations',json={**payload,'invitation_email':fields},headers=h).status_code==400
 
@@ -92,12 +93,17 @@ def test_preview_authorisation_and_csrf(app):
 
 def test_worker_sends_multipart_html_and_plain_text(app,monkeypatch):
     import app.mail_service as service
-    admin=prepared(app);p=preview(admin,DETAILS).json
+    admin=prepared(app)
+    assert admin.put('/api/admin/settings',json={'reply_to':'replies@example.com'},headers=headers(admin,'/ivoryadmin')).status_code==200
+    p=preview(admin,DETAILS).json
     assert admin.post('/api/admin/couples/invite',json={**DETAILS,'invitation_email':p['email']},headers=headers(admin,'/ivoryadmin')).status_code==201
     FakeSMTP.calls=[];monkeypatch.setattr(service.smtplib,'SMTP',FakeSMTP)
     db=database(app);deliver(db,config(db),secret=app.config['SECRET_VALUE']);db.close()
     message=next(c[1] for c in FakeSMTP.calls if c[0]=='message')
     assert message.get_content_type()=='multipart/alternative'
+    assert message['From'].addresses[0].display_name=='Mark at Ivory Digital'
+    assert message['From'].addresses[0].addr_spec=='planner@example.com'
+    assert message['Reply-To']=='replies@example.com'
     assert 'Built by Weddings By Mark' in message.get_body(preferencelist=('html',)).get_content()
     assert '/welcome/' in message.get_body(preferencelist=('plain',)).get_content()
 
@@ -108,3 +114,26 @@ def test_additive_html_migration_preserves_old_mail_and_secret(app):
     db=database(app);row=db.execute('SELECT * FROM mail WHERE id="legacy"').fetchone();db.close()
     assert row['body']=='Keep this' and row['html_body']==''
     assert Path(app.config['DATA_DIR'],'app-secret').read_text()==secret
+
+
+@pytest.mark.parametrize('kind',['Complimentary','Trial'])
+def test_simple_invitation_has_one_private_link_and_matching_access_information(kind):
+    from app.invitation_mail import invitation_email
+    from html.parser import HTMLParser
+    class Links(HTMLParser):
+        def __init__(self):super().__init__();self.links=[]
+        def handle_starttag(self,tag,attrs):
+            if tag=='a':self.links.append(dict(attrs).get('href'))
+    url='https://planner.example.com/welcome/test-only-token'
+    result=invitation_email({'names':['Alex','Sam'],'date':'2027-06-19'},kind,'2027-07-19',21,url)
+    parser=Links();parser.feed(result['html'])
+    assert parser.links==[url] and result['body'].count(url)==1
+    for content in (result['html'],result['body']):
+        assert '7 days' in content and 'just reply to this email' in content
+        assert 'Make it yours' not in content and '✓' not in content
+        if kind=='Trial':
+            assert '21-day trial' in content and 'No payment is taken' in content
+            assert 'booking your wedding' not in content and 'you booked your wedding' not in content
+        else:
+            assert '19 July 2027' in content and '30 days after your wedding' in content
+            assert 'at no extra cost' in content

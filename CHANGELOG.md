@@ -1,3 +1,13 @@
+## v1.9.5 — personal planner setup invitations
+
+- Simplify booked-couple and trial invitations to one small heading, a personal message, one setup button and essential access/help details, with matching plain text.
+- Identify setup invitations as Mark at Ivory Digital while retaining the configured From mailbox, Reply-To, SMTP transport and authentication path. Show the same sender in admin previews.
+- Retain configured trial length, complimentary access end dates, seven-day setup links, editable wording, preview/send validation and automatic booking integration.
+- Keep queued content and previous personal messages intact; deploying sends no emails. Other message types and self-service sign-up verification are unchanged.
+- Include the established configuration-preserving updater with backup, isolated restore rehearsal and rollback instructions.
+
+No schema migration, pricing, account deletion or DNS changes. Inbox placement must be assessed through controlled provider tests after deployment.
+
 ## v1.9.4 — eight included stationery collections
 
 - Add Art Deco: chamfered geometric frames, stepped corner details and a distinct stacked name composition, with midnight, emerald and champagne palettes.
