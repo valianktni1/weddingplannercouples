@@ -24,7 +24,7 @@ from .invitation_mail import invitation_email, SENDER_NAME
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.9.5'
+VERSION='1.9.6'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -691,6 +691,8 @@ def create_app(test_config=None):
             status={'version':VERSION,'disk_total':usage.total,'disk_free':usage.free,'backups':[p.name for p in sorted(backups,reverse=True)[:10]],'smtp_configured':smtp_ready(settings),'stripe_configured':bool(os.getenv('STRIPE_SECRET_KEY') and os.getenv('STRIPE_WEBHOOK_SECRET')),'paid_sales_pence':paid,'bespoke_sales_pence':db().execute('SELECT coalesce(sum(amount),0) FROM bespoke_receipts').fetchone()[0],'trial_interest_pending':db().execute('SELECT count(*) FROM trial_interest WHERE contacted IS NULL AND created>=?',(time.time()-180*86400,)).fetchone()[0],'bespoke_open_orders':db().execute("SELECT count(*) FROM bespoke_orders WHERE stage NOT IN ('Paid','Cancelled') OR attention=1").fetchone()[0],'worker_heartbeat':heartbeat,'health':health})
     from .admin_backups import register_admin_backups
     register_admin_backups(app,db,auth,audit,rate)
+    from .couple_deletion import register_couple_deletion,blocked as deletion_blocked
+    register_couple_deletion(app,db,auth,audit,rate)
 
     def invitation_ready():
         settings=config(db())
@@ -708,6 +710,7 @@ def create_app(test_config=None):
         state=empty_state();state.update(names=[n.strip() for n in names],email=email,date=day)
         return state,kind,until
     def pending_invitee(wid):
+        if deletion_blocked(db(),wid):abort(409,description='Permanent deletion is in progress for this couple.')
         if db().execute('SELECT 1 FROM cancelled_couple_invitations WHERE wedding_id=?',(wid,)).fetchone():
             abort(409,description='This invitation was cancelled. Restore it from Cancelled invitations before previewing or resending.')
         u=db().execute('SELECT u.* FROM users u JOIN members m ON m.user_id=u.id WHERE m.wedding_id=? AND u.verified=0 AND EXISTS(SELECT 1 FROM tokens t WHERE t.user_id=u.id AND t.kind="welcome" AND t.wedding_id=m.wedding_id)',(wid,)).fetchone()
@@ -800,6 +803,8 @@ def create_app(test_config=None):
 
     @app.get('/api/integrations/wbm/invitations/<booking_id>')
     def get_booking_invitation(booking_id):
+        if db().execute('SELECT 1 FROM deleted_booking_ids WHERE booking_hash=?',(digest(booking_id),)).fetchone():
+            return jsonify(booking_id=booking_id,status='deleted',wedding_id=None,access_until=None)
         row=db().execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(booking_id,)).fetchone()
         if not row: abort(404)
         return jsonify(booking_invitation_status(row))
@@ -823,6 +828,8 @@ def create_app(test_config=None):
         # response is lost, replay returns the same queued invitation.
         rate('wbm-invites',100,3600,per_ip=False)
         db().execute('BEGIN IMMEDIATE')
+        if db().execute('SELECT 1 FROM deleted_booking_ids WHERE booking_hash=?',(digest(body['booking_id']),)).fetchone():
+            abort(409,description='This planner account was permanently deleted. Automatic reinvitation is disabled for this booking.')
         existing=db().execute('SELECT * FROM wbm_booking_invitations WHERE booking_id=?',(body['booking_id'],)).fetchone()
         if existing:
             if existing['request_hash']!=fingerprint: abort(409,description='This booking already has a planner invitation with different details. Review it in planner admin.')
@@ -880,6 +887,7 @@ def create_app(test_config=None):
     @app.post('/api/admin/couples/<wid>/restore-invitation')
     @auth(admin=True)
     def admin_restore_invitation(wid):
+        if deletion_blocked(db(),wid):abort(409,description='Permanent deletion is in progress for this couple.')
         if json_body().get('confirmed') is not True: raise ValueError('Confirm that you want to restore this invitation.')
         rate('admin-restore-invite',50,3600,per_ip=False)
         db().execute('BEGIN IMMEDIATE')
@@ -916,6 +924,7 @@ def create_app(test_config=None):
     @app.post('/api/admin/access/<wid>')
     @auth(admin=True)
     def admin_access(wid):
+        if deletion_blocked(db(),wid):abort(409,description='Permanent deletion is in progress for this couple.')
         body=json_body();kind=body.get('access');until=body.get('until');reason=str(body.get('reason','')).strip()
         w=db().execute('SELECT * FROM weddings WHERE id=?',(wid,)).fetchone()
         if not w: abort(404)

@@ -41,6 +41,8 @@ def recover_interrupted_backup(db):
 def process_requested_backup(db,data_dir,backup_dir):
     """One worker claims a queued request; failures never remove older archives."""
     from .worker import backup
+    from .couple_deletion import pending
+    if pending(db):return False
     db.execute('BEGIN IMMEDIATE')
     job=read_job(db)
     if job.get('status')!='queued':
@@ -64,13 +66,17 @@ def register_admin_backups(app,db,auth,audit,rate):
     @app.get('/api/admin/backups')
     @auth(admin=True)
     def backup_status():
+        from .couple_deletion import pending
         row=db().execute('SELECT value FROM settings WHERE key="worker_heartbeat"').fetchone()
         healthy=bool(row and time.time()-json.loads(row['value'])<180)
-        return jsonify(archives=archives(app.config['BACKUP_DIR']),job=read_job(db()),worker_running=healthy)
+        cleaning=pending(db())
+        return jsonify(archives=[] if cleaning else archives(app.config['BACKUP_DIR']),job=read_job(db()),worker_running=healthy,deletion_cleanup=cleaning)
 
     @app.post('/api/admin/backups')
     @auth(admin=True)
     def request_backup():
+        from .couple_deletion import pending
+        if pending(db()):abort(409,description='Finish permanent couple deletion and backup cleanup before creating another backup.')
         rate('admin-backup',10,3600,per_ip=False)
         db().execute('BEGIN IMMEDIATE')
         job=read_job(db())
@@ -84,6 +90,8 @@ def register_admin_backups(app,db,auth,audit,rate):
     @app.get('/api/admin/backups/<name>')
     @auth(admin=True)
     def download_backup(name):
+        from .couple_deletion import pending
+        if pending(db()):abort(409,description='Backup downloads are paused until permanent couple deletion and archive cleanup complete.')
         if not NAME.fullmatch(name):abort(404)
         path=Path(app.config['BACKUP_DIR'])/name
         try:

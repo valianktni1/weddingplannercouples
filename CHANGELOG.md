@@ -1,3 +1,14 @@
+## v1.9.6 — permanent couple erasure and managed backup cleanup
+
+- Add an admin-only, CSRF-protected deletion preview and explicit typed confirmation for active, pending and cancelled couple accounts.
+- Revoke access immediately; let the writable worker delete the wedding, both member accounts, private files and linked planner data/message/payment/order records.
+- Clean the selected couple from each managed backup, verify isolated recovery and atomically replace only validated archives. Preserve unrelated couples, archive dates and history; serialize archive creation and cleanup.
+- Expose progress, interrupted-job recovery and explicit retries. Pause backup creation/downloads while incomplete; allow unrelated planning/email to continue. Clear retry identifiers on completion and keep only a non-personal completion log.
+- Suppress automatic recreation from connected booking retries with a hashed booking marker. Explain that external snapshots, replicas, exports and delivered emails are out of scope.
+- Include the configuration-preserving v1.9.6 updater. Deployment itself deletes no accounts.
+
+Two additive tables, no pricing or existing-account migration. Older code cannot process this deletion queue; finish cleanup before code rollback.
+
 ## v1.9.5 — personal planner setup invitations
 
 - Simplify booked-couple and trial invitations to one small heading, a personal message, one setup button and essential access/help details, with matching plain text.

@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.9.5
+# Ivory Digital Wedding Planner — v1.9.6
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -689,3 +689,21 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The updater preserves installation settings and port 30063, backs up data, rehearses recovery in isolation, checks web/worker version 1.9.5 and prints a rollback command. After deployment, refresh the admin page, preview one complimentary and one trial invitation, then send only to controlled test addresses in Outlook and iCloud. Record inbox/junk placement and original headers before moving the messages. This release does not change self-service sign-up verification, guest RSVP invitations or other planner emails.
+
+
+## v1.9.6: permanently delete a couple and clean managed backups
+
+Open **Admin → Couples & access → Permanently delete couple**, available for accepted accounts and cancelled/pending invitations. Review the couple's emails and affected records, type DELETE, tick the managed-backup acknowledgement and select **Permanently delete couple & clean backups**. This is irreversible: both partners' planner accounts, plans, guests, private files, stationery, payment/order history, tokens, sessions and associated message records are removed. Previously delivered email cannot be recalled. It does not cancel or refund payments in external banking/Stripe/PayPal systems, or delete the separate Weddings By Mark booking record.
+
+Access and setup links are blocked immediately. The writable worker removes the live wedding and then rewrites every managed `planner-*.tar.gz` archive in the configured backup directory. Each archive is extracted with path/link checks, the selected wedding and historical member data are removed, the database is compacted, private files are removed, and the cleaned archive passes an isolated restore before atomic replacement. Other couples' records, files, backup dates and archive history are preserved. Backup creation/downloads pause until cleanup succeeds; unrelated couples' planning and email continue. Progress and a retry control appear in Couples & access. A failed or interrupted job retains only the identifiers needed to resume; completion clears that retry payload and confirms the number of archives cleaned. Do not treat Queued or Failed as complete. Corrupt archives or insufficient storage can require attention; leave free space for the largest archive's extracted contents, a second verification copy and a compressed replacement.
+
+**Scope:** only archives created and managed by this planner in BACKUP_DIR are cleaned. TrueNAS/ZFS snapshots, replicated/off-server backups, copies downloaded elsewhere, separately retained exports and messages already delivered to recipients are outside the app's control. Manage their retention separately. Filesystem snapshots may retain old blocks even after normal file replacement. Restoring an external pre-deletion snapshot can bring the data back. A hash of a connected booking identifier is retained to stop automatic booking retries recreating a deleted account; no couple name or email is stored in that marker.
+
+In the TrueNAS shell:
+
+```bash
+cd /mnt/apps/weddingplannercouples
+(umask 022; git pull --ff-only) && bash scripts/deploy-v196.sh
+```
+
+The established updater preserves configuration and port 30063, backs up data, tests isolated recovery and prints rollback instructions. The additive deletion-job and booking-suppression tables preserve existing records during deployment. Deploying does not delete any couple. After deployment, refresh admin and use the preview on a disposable test couple first; check Completed before considering its managed backups clean. Older application images cannot honour the new deletion queue; finish cleanup before rolling back application code.

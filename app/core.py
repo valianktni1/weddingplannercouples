@@ -81,6 +81,7 @@ def connect(path):
     db = sqlite3.connect(path, timeout=20)
     db.row_factory = sqlite3.Row
     db.execute('PRAGMA foreign_keys=ON')
+    db.execute('PRAGMA secure_delete=ON')
     db.execute('PRAGMA busy_timeout=20000')
     return db
 
@@ -104,6 +105,8 @@ def initialise(data_dir):
         db = connect(root / 'planner.sqlite3')
         db.execute('PRAGMA journal_mode=WAL')
         db.executescript(SCHEMA)
+        from .couple_deletion import SCHEMA as DELETION_SCHEMA
+        db.executescript(DELETION_SCHEMA)
         from .day_hub import SCHEMA as HUB_SCHEMA
         db.executescript(HUB_SCHEMA)
         from .stationery import SCHEMA as STATIONERY_SCHEMA

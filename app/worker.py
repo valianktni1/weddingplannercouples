@@ -10,13 +10,22 @@ import urllib.parse
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
-from .core import connect, initialise, config, digest
+from .core import connect, initialise, config, digest, file_lock
 from .mail_service import smtp_ready, send_email, delivery_error
 from .invitation_mail import SENDER_NAME
 
 DATA=Path(os.getenv('DATA_DIR','/data'));BACKUPS=Path(os.getenv('BACKUP_DIR','/backups'))
 
 def backup(data_dir=DATA,backup_dir=BACKUPS):
+    from .couple_deletion import pending
+    with (Path(data_dir)/'backup-operation.lock').open('a+') as lock,file_lock(lock):
+        check=connect(Path(data_dir)/'planner.sqlite3')
+        try:
+            if pending(check):raise ValueError('Finish couple deletion and backup cleanup before creating a backup.')
+        finally:check.close()
+        return _backup(data_dir,backup_dir)
+
+def _backup(data_dir=DATA,backup_dir=BACKUPS):
     backup_dir=Path(backup_dir);backup_dir.mkdir(parents=True,exist_ok=True)
     data_dir=Path(data_dir);lock=connect(data_dir/'planner.sqlite3')
     try:
@@ -131,6 +140,8 @@ def deliver(db,settings,now=None,secret=None):
     if not smtp_ready(settings): return
     secret=secret or (DATA/'app-secret').read_text().strip()
     for row in db.execute('SELECT * FROM mail WHERE status IN ("queued","retry") AND next_attempt<=? ORDER BY created LIMIT 20',(time.time(),)).fetchall():
+        from .couple_deletion import mail_blocked
+        if mail_blocked(db,row):continue  # previously accepted mail cannot be recalled
         body=current_mail(db,row,settings,now)
         if body is None:
             db.execute('UPDATE mail SET status="cancelled",last_error=NULL WHERE id=?',(row['id'],));db.commit();continue
@@ -163,13 +174,16 @@ def run():
             db.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             db.execute('DELETE FROM rate_limits WHERE reset<?',(time.time(),))
             prune_tokens(db,time.time())
+            db.commit()
+            from .couple_deletion import process_deletion,pending
+            process_deletion(db,DATA,BACKUPS)
             schedule(db,settings,now);db.commit();deliver(db,settings,secret=secret)
             db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('worker_heartbeat',json.dumps(time.time())));db.commit()
             from .admin_backups import process_requested_backup
             process_requested_backup(db,DATA,BACKUPS)
             local=now.astimezone(ZoneInfo(settings['timezone']));stamp=local.date().isoformat()
             last=db.execute('SELECT value FROM settings WHERE key="last_backup_day"').fetchone()
-            if local.strftime('%H:%M')>=settings['backup_time'] and (not last or json.loads(last['value'])!=stamp):
+            if not pending(db) and local.strftime('%H:%M')>=settings['backup_time'] and (not last or json.loads(last['value'])!=stamp):
                 target=backup();db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('last_backup_day',json.dumps(stamp)))
                 db.execute('INSERT INTO audit(actor,action,created) VALUES(?,?,?)',('worker','Backup completed: '+target.name,time.time()));db.commit()
                 limit=time.time()-max(1,settings['backup_retention_days'])*86400
