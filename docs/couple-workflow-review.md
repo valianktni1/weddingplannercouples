@@ -32,3 +32,9 @@ All existing destinations, editors, sharing controls, email/payment automation a
 Art Deco and Coastal Calm extend the six existing collections to eight. Each adds three palettes and supports all nine item types through the same saved-draft, preview, PDF/PNG and batch-download workflow. The stationery introduction identifies the standard designs as included at no extra charge, alongside the separate bespoke offer. New palette labels use readable spaces, for example Sea Glass.
 
 Trying a collection only previews it. Existing drafts change only through the existing explicit Save action; account access rules and the separate optional bespoke payment flow are unchanged. New artwork uses local vector strokes rather than additional image assets or online services. All older collections and the Photo Story crop logic retain their previous compositions.
+
+## Guided assistance — v1.9.7
+
+The optional Planning Assistant follows the existing manual workflows. When enabled with a configured server-side key, contextual invitation/table-plan buttons and a menu link open three guided questions, a checked draft preview and explicit Apply. Couples can revise within shared per-wedding allowances or undo an applied proposal while newer edits are protected. Manual editing is always available under normal planner access. Disabled installations retain their current navigation; the direct assistant page explains availability.
+
+The initial scope is invitation wording in the eight current collections and seating for accepted day guests with explicit together/apart groups. It does not create arbitrary illustrated templates or expose an unrestricted chatbot. Admin controls cover availability, USD usage ceilings, an initially unset GBP top-up price, correction refunds and manually verified paid revision credits. No public feature or paid API call is enabled by deployment alone. See planning-assistant.md for the full scope and setup.

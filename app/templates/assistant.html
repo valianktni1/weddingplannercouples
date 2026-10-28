@@ -1,0 +1,3 @@
+{% extends 'couple_base.html' %}
+{% block head %}<link rel="stylesheet" href="/static/assistant.css?v={{ version }}"><script src="/static/assistant.js?v={{ version }}" defer></script>{% endblock %}
+{% block content %}<main class="setup assistant-main"><div class="heading"><div><div class="eyebrow">A little help with your plans</div><h1>Ivory Planning Assistant</h1><p>Answer a few easy questions. Preview a draft, then choose whether to apply it.</p></div></div><p><a class="button" href="/app">Back to our planner</a></p><p id="assistant-status" role="status" aria-live="polite"></p><div id="assistant-app">Opening your assistant…</div></main>{% endblock %}

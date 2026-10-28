@@ -5,6 +5,7 @@
   <div class="heading"><div><div class="eyebrow">Made for your day</div><h1>Our invitations & stationery</h1><p>Choose a design, add your wording and download files to print yourself. All eight standard collections are included with your planner at no extra charge. Your saved designs stay here to edit later.</p></div></div>
 
   <p>Want guests to reply online? <a href="/website#guest-invitations">Create personal RSVP links on your wedding website</a>. Downloading stationery does not send invitations.</p>
+  {% if assistant_available %}<p><a class="button" href="/assistant?task=invitation">Help me with an invitation</a></p>{% endif %}
   <p id="stationery-status" role="status" aria-live="polite">Opening your collections…</p>
   <button type="button" id="stationery-recovery" hidden>Keep a wording copy</button>
   <div id="stationery-app"></div>

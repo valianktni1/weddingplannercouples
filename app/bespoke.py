@@ -435,7 +435,7 @@ def register_bespoke(app,db,auth,wedding,json_body,audit,rate,paypal_link,bank_r
         receipt=receipt.strip().upper()
         if not payment or r['paid_at'] or body.get('checked') is not True:raise ValueError('Check the real completed payment for this order before confirming it.')
         if type(body.get('amount')) is not int or body['amount']!=r['amount'] or not 3<=len(receipt)<=160:raise ValueError('The received amount must match the quote. Enter a unique transaction or bank receipt reference.')
-        if any(db().execute('SELECT 1 FROM '+table+' WHERE transaction_id=?',(receipt,)).fetchone() for table in ('bespoke_receipts','paypal_receipts','bank_receipts')):raise ValueError('That payment reference is already recorded. Check the actual payment.')
+        if any(db().execute('SELECT 1 FROM '+table+' WHERE transaction_id=?',(receipt,)).fetchone() for table in ('bespoke_receipts','paypal_receipts','bank_receipts','ai_credits')):raise ValueError('That payment reference is already recorded. Check the actual payment.')
         approved=r['approved_version']==r['design_version'] and r['design_version']>0
         db().execute('INSERT INTO bespoke_receipts VALUES(?,?,?,?,?,?)',(oid,payment['provider'],receipt,r['amount'],g.user['id'],time.time()));change(r,body,paid_at=time.time(),stage='Paid' if approved else r['stage']);event(r,'Payment verified; files unlocked' if approved else 'Payment verified; awaiting final approval');return jsonify(ok=True)
     @app.post('/api/admin/bespoke/<oid>/withdraw-payment')

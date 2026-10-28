@@ -584,3 +584,5 @@ def register_stationery(app,db,auth,wedding,json_body,audit,rate):
         # Do not label an older snapshot current if a partner edited during rendering.
         db().execute('UPDATE stationery_drafts SET exported_source=?,exported_revision=?,exported_at=? WHERE wedding_id=? AND kind=? AND revision=?',(current,row['revision'],time.time(),w['id'],kind,row['revision']))
         return send_file(io.BytesIO(result),mimetype='application/pdf' if fmt=='pdf' else 'image/png',as_attachment=True,download_name=f'our-{kind}-r{row["revision"]}.{fmt}')
+
+    return {"layouts_for":layouts_for}

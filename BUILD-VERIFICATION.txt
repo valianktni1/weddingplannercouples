@@ -1,3 +1,15 @@
+v1.9.7 — optional guided Planning Assistant (28 October 2026)
+
+- Full Python regression: 316 passed, 3 subtests passed. Includes the newer v1.9.5 invitation and v1.9.6 deletion/managed-backup cleanup changes pulled before implementation.
+- All 32 focused assistant tests passed again after final input recovery, conservative cost accounting and error handling refinements.
+- Backend coverage: off-by-default/no-key behaviour; authentication/CSRF/access expiry/ownership; fixed model/medium/standard payload; explicit consent; real invitation preview/apply/undo; seating capacity, missing/duplicate/foreign guest rejection and hard together/apart constraints; stale source/manual/partner protection; shared partner allowance; idempotency/running requests; simultaneous global-budget reservation; failed/refused/incomplete/invalid outputs; measured-cost settlement/uncertain reserves/definite auth rejection; one-time correction refund; verified paid top-ups/receipt reuse protection; private export; deletion retaining only anonymous cost totals; protected key setup.
+- Real Chromium assistant workflow passed against an isolated app with an explicitly simulated provider: guided questions, correction after invalid answers, actual rendered image preview, explicit Apply, Undo, seating apply/undo, reported-error credit, verified sample top-up, invalid-provider input preservation, fixed model controls and 320/390/736/1280px light/dark layouts. No real API calls, credentials or payments.
+- Existing grouped navigation, Photo Story upload/crop/PDF/PNG and streamlined workflows passed, including menu guards, scroll return/reload and real sample-admin password change with continued console access.
+- deploy-v197.sh preparation/sequence: 10 passed, 3 subtests passed. Includes backup/build/restore failure protection and existing configuration/environment preservation. Actual NAS Docker build/archive rehearsal is still a deployment check.
+- Python compilation, JavaScript and shell syntax and git whitespace checks passed. The mobile assistant invitation-preview screenshot was inspected.
+- The feature adds its own tables without rewriting existing wedding or stationery data. API keys are environment-only, absent from browser responses and exports. The NAS helper asks for the key with hidden input and makes no provider request.
+- Automated tests use disposable sample accounts/data and blocked browser-QA SMTP. Production deployment and real-provider quality/account/billing readiness were not tested. Configure a dedicated key and explicitly pilot one sample task before wider enablement.
+
 v1.9.4 — eight included stationery collections (27 October 2026)
 
 - Full Python regression: 271 passed, 3 subtests passed.

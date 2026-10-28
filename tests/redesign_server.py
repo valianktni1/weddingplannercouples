@@ -27,4 +27,22 @@ import app.mail_service as mail_service
 class NoSMTP:
  def __init__(self,*args,**kwargs):raise RuntimeError('No external mail allowed in design QA')
 mail_service.smtplib.SMTP=NoSMTP;mail_service.smtplib.SMTP_SSL=NoSMTP
+# Explicit local fixture only: no real credentials or paid API requests.
+import os
+if os.getenv('PLANNER_AI_SAMPLE')=='1':
+ os.environ['OPENAI_API_KEY']='test-only-fake-api-key-for-local-browser'
+ from app import planning_assistant
+ def sample_provider(payload):
+  context=json.loads(payload['input'])
+  if context['task']=='invitation':
+   output={'summary':'A checked sample invitation.','intro':'Together with their families','message':'Please celebrate our wedding with us','closing':'Reception and celebrations to follow'}
+   if 'QA_INVALID' in context['instructions']:output['message']='x'*1000
+  else:
+   remaining={t['id']:t['available'] for t in context['tables']};assignments=[]
+   for guest in context['guests']:
+    table=next(t for t in context['tables'] if remaining[t['id']]>0);remaining[table['id']]-=1;assignments.append({'guest_id':guest['id'],'table_id':table['id']})
+   output={'summary':'A checked sample seating arrangement.','assignments':assignments}
+  return {'status':'completed','model':planning_assistant.MODEL,'output':[{'type':'message','content':[{'type':'output_text','text':json.dumps(output)}]}],'usage':{'input_tokens':1000,'output_tokens':1000}}
+ planning_assistant.provider_request=sample_provider
+ db=connect(a.config['DATABASE']);db.execute('INSERT OR REPLACE INTO settings VALUES("assistant_enabled","true")');db.commit();db.close()
 a.run(host='127.0.0.1',port=8765,use_reloader=False)

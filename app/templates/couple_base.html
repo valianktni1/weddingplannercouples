@@ -34,6 +34,7 @@
       {% if not preview_state %}<a href="/hub" data-couple-route="hub">Wedding Day Hub · helpers & sharing<span aria-hidden="true">›</span></a><a href="/hub#packs" data-couple-route="packs">Download day packs<span aria-hidden="true">›</span></a><div id="couple-booking-tools" class="menu-booking-tools"></div>{% endif %}
     </section>
     <section class="planner-menu-group"><h3>Our settings</h3>
+      {% if not preview_state and assistant_available %}<a href="/assistant" data-couple-route="assistant">Planning assistant<span aria-hidden="true">›</span></a>{% endif %}
       <a href="/app#account" data-couple-page="account">Our details & partner access<span aria-hidden="true">›</span></a>
       {% if not preview_state %}<a href="/upgrade" data-couple-route="access">Account access<span aria-hidden="true">›</span></a>{% endif %}
     </section>

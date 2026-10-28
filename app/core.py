@@ -107,6 +107,8 @@ def initialise(data_dir):
         db.executescript(SCHEMA)
         from .couple_deletion import SCHEMA as DELETION_SCHEMA
         db.executescript(DELETION_SCHEMA)
+        from .planning_assistant import SCHEMA as AI_SCHEMA
+        db.executescript(AI_SCHEMA)
         from .day_hub import SCHEMA as HUB_SCHEMA
         db.executescript(HUB_SCHEMA)
         from .stationery import SCHEMA as STATIONERY_SCHEMA

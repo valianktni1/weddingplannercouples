@@ -1,4 +1,4 @@
-# Ivory Digital Wedding Planner — v1.9.6
+# Ivory Digital Wedding Planner — v1.9.7
 
 This is the server-backed first release, not the earlier HTML demonstration. It includes a shared planner, partner accounts, wedding websites and individual guest RSVPs, plus Mark’s superadmin area.
 
@@ -707,3 +707,25 @@ cd /mnt/apps/weddingplannercouples
 ```
 
 The established updater preserves configuration and port 30063, backs up data, tests isolated recovery and prints rollback instructions. The additive deletion-job and booking-suppression tables preserve existing records during deployment. Deploying does not delete any couple. After deployment, refresh admin and use the preview on a disposable test couple first; check Completed before considering its managed backups clean. Older application images cannot honour the new deletion queue; finish cleanup before rolling back application code.
+
+## v1.9.7: optional Ivory Planning Assistant
+
+Deploy using `bash scripts/deploy-v197.sh` after pulling main. The existing backup, isolated recovery rehearsal, installation configuration preservation and rollback process is retained. Assistant tables are added automatically without rewriting existing plans.
+
+The feature is **off by default**. Manual tools remain available. The first version prepares day/evening invitation wording in the eight existing collections and proposes seating for up to 150 accepted day guests. Couples answer three guided questions, preview a checked proposal and explicitly Apply it. An applied proposal can be undone while newer edits are protected. AI cannot change payments, accounts, access dates, guest identities or app code, send invitations, or generate new artwork.
+
+Each wedding shares **one draft + two AI revisions for invitations**, and a separate **one draft + two revisions for seating**. Day/evening invitations share the invitation allowance. A successful draft uses a round even if not applied. Questions, validation failures, rejected/incomplete attempts, refresh, preview, apply and undo do not consume rounds. Ordinary manual editing is unchanged. Confirmed assistant mistakes can receive a one-time round refund in admin; paid extra rounds need a unique cleared GBP payment checked manually by Mark. The top-up price starts blank and must be set before paid credits can be granted. Paid rounds do not change planner access or override API budgets.
+
+### Enable on TrueNAS
+
+1. Create a dedicated OpenAI API project/key with API billing. A ChatGPT subscription does not include these API charges. Do not paste the key in chat or commit it to Git.
+2. From `/mnt/apps/weddingplannercouples`, run `sudo python3 scripts/configure_assistant_key.py`. It asks twice with hidden input, backs up the private external environment file and changes only its `OPENAI_API_KEY` entry. No API call is made.
+3. Run `docker compose up -d --no-build --pull never --force-recreate web` to load the new environment.
+4. Open **Admin → System & security → Manage planning assistant** (also `/ivoryadmin/assistant`). Check key status, choose the monthly/per-couple API budgets, optionally set the GBP top-up price, then enable.
+5. Review the site privacy notice for the new opt-in OpenAI data flow, then pilot one task in your own sample couple account before wider promotion. The first actual generation is billable; setup and availability checks are not API requests.
+
+The model is fixed to **`gpt-6.1-sol`, medium reasoning, standard mode**, via the Responses API with strict JSON output and `store:false`. No escalation, external tools, hosted execution, web search, image generation or automatic provider retry is permitted. The API key remains server-side. Only needed invitation facts or selected guest names/households and seating rules are sent, with explicit consent. Supplier/payment data, private family notes, dietary/access data and photo bytes are excluded; couples are asked to keep sensitive details out of free-text instructions.
+
+Default ceilings are **$10 per calendar month globally** and **$2 per wedding per month**, calculated in UTC. The app atomically reserves a conservative maximum before each provider call. Reported usage settles the reservation, even when a generated draft fails local checks. Uncertain timeouts retain their reserve; definite rejected requests release it. Authentication rejection pauses AI. Enforcement conservatively estimates inputs at $3/million and output/reasoning at $10/million, ignores cached-token discounts, and excludes currency conversion/taxes; the OpenAI invoice remains authoritative. Revisions and paid credits are separate from API cost budgets. Budgets reset monthly; included revision counts do not.
+
+See [docs/planning-assistant.md](docs/planning-assistant.md) for limits, operations, data protection and validation. No live API credentials or paid API calls are used in the automated tests. A real-provider pilot remains required after key setup.

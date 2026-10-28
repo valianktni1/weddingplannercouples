@@ -24,7 +24,7 @@ from .invitation_mail import invitation_email, SENDER_NAME
 from .day_hub import register_hub,journey as hub_journey
 from .guest_experience import GuestExperience,validate_guest_fields
 
-VERSION='1.9.6'
+VERSION='1.9.7'
 def create_app(test_config=None):
     app=Flask(__name__)
     app.config.update(DATA_DIR=os.environ.get('DATA_DIR','/data'), BACKUP_DIR=os.environ.get('BACKUP_DIR','/backups'),
@@ -124,6 +124,8 @@ def create_app(test_config=None):
     def before():
         g.cookie=None;g.user=None
         if request.path.startswith('/static/') or request.path=='/healthz': return
+        if request.path.startswith('/api/assistant') or request.path.startswith('/api/admin/assistant'):
+            request.max_content_length=128000
         if request.path.startswith('/weddings/'):
             request.max_content_length=512000
             request.max_form_memory_size=512000
@@ -186,7 +188,10 @@ def create_app(test_config=None):
             if exc: g.db.rollback()
             g.db.close()
     @app.context_processor
-    def ctx(): return {'csrf':getattr(g,'session',{}).get('csrf',''),'version':VERSION,'user':getattr(g,'user',None)}
+    def ctx():
+        user=getattr(g,'user',None)
+        visible=bool(user and user['role']=='couple' and os.getenv('OPENAI_API_KEY','').strip() and config(db()).get('assistant_enabled',False))
+        return {'csrf':getattr(g,'session',{}).get('csrf',''),'version':VERSION,'user':user,'assistant_available':visible}
     @app.errorhandler(ValueError)
     def invalid(e):
         if request.path.startswith('/api/'): return jsonify(error=str(e)),400
@@ -371,7 +376,7 @@ def create_app(test_config=None):
     @app.get('/api/export')
     @auth()
     def export():
-        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],bespoke=[dict(r)|{'brief':json.loads(r['brief'])} for r in db().execute('SELECT id,stage,amount,brief,quote_note,revision_used,revision_note,design_version,approved_version,paid_at,roster,created,updated FROM bespoke_orders WHERE wedding_id=?',(w['id'],))],guest_replies=[dict(r)|{'choices':json.loads(r['choices'])} for r in db().execute('SELECT guest_id,choices,meal,replied FROM guest_replies WHERE wedding_id=?',(w['id'],))],exported=time.time())
+        w=wedding();return jsonify(state=json.loads(w['state']),website=json.loads(w['site']),stationery=[dict(r)|{'data':json.loads(r['data'])} for r in db().execute('SELECT kind,revision,data,updated,exported_at FROM stationery_drafts WHERE wedding_id=?',(w['id'],))],bespoke=[dict(r)|{'brief':json.loads(r['brief'])} for r in db().execute('SELECT id,stage,amount,brief,quote_note,revision_used,revision_note,design_version,approved_version,paid_at,roster,created,updated FROM bespoke_orders WHERE wedding_id=?',(w['id'],))],assistant_drafts=[{k:r[k] for k in ['id','task','status','created','counted','refunded','report']}|{'proposal':json.loads(r['proposal']) if r['proposal'] else None} for r in db().execute('SELECT * FROM ai_drafts WHERE wedding_id=?',(w['id'],))],assistant_credits=[dict(r) for r in db().execute('SELECT task,quantity,amount,created FROM ai_credits WHERE wedding_id=?',(w['id'],))],guest_replies=[dict(r)|{'choices':json.loads(r['choices'])} for r in db().execute('SELECT guest_id,choices,meal,replied FROM guest_replies WHERE wedding_id=?',(w['id'],))],exported=time.time())
     @app.get('/website')
     @auth()
     def website_editor(): wedding();return render_template('website_editor.html')
@@ -1164,6 +1169,7 @@ def create_app(test_config=None):
         if receipt:
             if p['status']=='paid' and receipt['purchase_id']==pid and receipt['transaction_id']==transaction: return jsonify(ok=True)
             raise ValueError('This transaction or request has already been recorded. No second sale was added.')
+        if db().execute('SELECT 1 FROM ai_credits WHERE transaction_id=?',(transaction,)).fetchone():raise ValueError('This payment reference is already used for AI revisions.')
         if p['status'] not in ['pending','reported']: raise ValueError('This request cannot be confirmed in its current state.')
         if not t.get('accepted_at'): raise ValueError('The couple must accept the request terms before access is activated.')
         db().execute('INSERT INTO '+table+' VALUES(?,?,?,?)',(pid,transaction,g.user['id'],time.time()))
@@ -1259,7 +1265,9 @@ def create_app(test_config=None):
     guest_tools=GuestExperience(app,db,auth,wedding,public_wedding,token_row,rate,update_state,audit)
     hub_notify=register_hub(app,db,auth,wedding,json_body,audit,queue,token,token_row,rate,update_state)
     from .stationery import register_stationery
-    register_stationery(app,db,auth,wedding,json_body,audit,rate)
+    stationery_tools=register_stationery(app,db,auth,wedding,json_body,audit,rate)
+    from .planning_assistant import register_assistant
+    register_assistant(app,db,auth,wedding,json_body,audit,rate,update_state,hub_notify,stationery_tools)
     from .trial_interest import register_trial_interest
     register_trial_interest(app,db,auth,rate,audit,valid_email)
     from .bespoke import register_bespoke

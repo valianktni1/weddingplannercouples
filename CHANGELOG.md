@@ -1,3 +1,13 @@
+## v1.9.7 — opt-in guided Planning Assistant
+
+- Guided day/evening invitation drafts in existing collections, and checked seating proposals for accepted day guests, with actual previews, explicit Apply and guarded Undo.
+- Shared per-wedding allowances: one draft plus two revisions for invitations, and the same for seating. Failed attempts do not use rounds. Confirmed mistakes receive a one-time admin correction credit; verified paid top-ups have unique payment records and leave normal editing/access unchanged.
+- Pin GPT-6.1 Sol to medium/standard, with bounded input/output, strict structured responses, explicit data consent, server-side credentials, no tools/escalation/retries and conservative atomic monthly global/per-couple budgets.
+- Keep AI off by default, with a hidden-input NAS key setup helper and dedicated admin availability, budget, price, correction and top-up controls. Manual workflows remain available.
+- Add private assistant drafts/credits to the couple export. Couple deletion and managed-backup cleanup erase private AI records while retaining only an anonymous aggregate cost ledger.
+
+Additive assistant tables only; existing wedding state, saved stationery and payment automation are not rewritten. Includes the configuration-preserving v1.9.7 updater with backup, restore rehearsal, health verification and rollback command. Real-provider pilot remains an installation check after API key setup.
+
 ## v1.9.6 — permanent couple erasure and managed backup cleanup
 
 - Add an admin-only, CSRF-protected deletion preview and explicit typed confirmation for active, pending and cancelled couple accounts.
